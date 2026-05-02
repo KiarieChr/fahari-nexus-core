@@ -1,0 +1,162 @@
+import { useEffect, useState } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { ChevronRight, Sparkles } from "lucide-react";
+import { navSections, type NavSection } from "./nav-config";
+import { useThemeStore } from "@/store/theme";
+import { cn } from "@/lib/utils";
+
+function isSectionActive(section: NavSection, pathname: string) {
+  if (section.to && pathname === section.to) return true;
+  if (section.children?.some((c) => pathname.startsWith(c.to))) return true;
+  if (section.to && section.to !== "/" && pathname.startsWith(section.to)) return true;
+  return false;
+}
+
+export function AppSidebar() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const collapsed = useThemeStore((s) => s.sidebarCollapsed);
+
+  // single-open accordion: track currently-open section id
+  const initial =
+    navSections.find((s) => s.children && isSectionActive(s, pathname))?.id ?? null;
+  const [openId, setOpenId] = useState<string | null>(initial);
+
+  // Auto-open the section that contains the active route on navigation
+  useEffect(() => {
+    const active = navSections.find((s) => s.children && isSectionActive(s, pathname));
+    if (active && active.id !== openId) setOpenId(active.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  return (
+    <aside
+      className={cn(
+        "shrink-0 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-out",
+        collapsed ? "w-[76px]" : "w-72",
+      )}
+    >
+      {/* Brand */}
+      <div className="px-5 py-6 border-b border-sidebar-border/60 flex items-center gap-3">
+        <div className="size-9 shrink-0 rounded-md bg-gradient-to-br from-brass-light to-brass-dark grid place-items-center shadow-lg shadow-black/30 ring-1 ring-brass/40">
+          <Sparkles className="size-4 text-navy-deep" strokeWidth={2.5} />
+        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="font-display text-brass-light text-base tracking-[0.18em] uppercase truncate">
+              Fahari Nexus
+            </div>
+            <div className="text-[10px] text-sidebar-foreground/50 tracking-[0.25em] uppercase truncate">
+              Enterprise Suite
+            </div>
+          </div>
+        )}
+      </div>
+
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        {navSections.map((section) => {
+          const Icon = section.icon;
+          const active = isSectionActive(section, pathname);
+          const hasChildren = !!section.children?.length;
+          const isOpen = openId === section.id && !collapsed;
+
+          if (!hasChildren) {
+            return (
+              <Link
+                key={section.id}
+                to={section.to!}
+                className={cn(
+                  "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-all relative",
+                  active
+                    ? "bg-sidebar-accent text-brass-light"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                )}
+              >
+                {active && (
+                  <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-brass" />
+                )}
+                <Icon className={cn("size-4 shrink-0", active && "text-brass")} />
+                {!collapsed && <span className="truncate font-medium">{section.label}</span>}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={section.id}>
+              <button
+                onClick={() => setOpenId(isOpen ? null : section.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-all relative",
+                  active
+                    ? "bg-sidebar-accent text-brass-light"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                )}
+              >
+                {active && (
+                  <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-brass" />
+                )}
+                <Icon className={cn("size-4 shrink-0", active && "text-brass")} />
+                {!collapsed && (
+                  <>
+                    <span className="truncate font-medium flex-1 text-left">{section.label}</span>
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform text-sidebar-foreground/50",
+                        isOpen && "rotate-90 text-brass",
+                      )}
+                    />
+                  </>
+                )}
+              </button>
+
+              {isOpen && section.children && (
+                <div className="mt-1 mb-2 ml-6 pl-3 border-l border-sidebar-border/60 space-y-0.5">
+                  {section.children.map((child) => {
+                    const childActive = pathname === child.to;
+                    return (
+                      <Link
+                        key={child.to}
+                        to={child.to}
+                        className={cn(
+                          "block rounded-md px-3 py-1.5 text-[13px] transition-colors",
+                          childActive
+                            ? "text-brass-light bg-sidebar-accent/70"
+                            : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40",
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      {/* Footer / user */}
+      <div className="px-3 py-4 border-t border-sidebar-border/60">
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-md px-2 py-2 hover:bg-sidebar-accent/60 transition-colors cursor-pointer",
+            collapsed && "justify-center",
+          )}
+        >
+          <div className="size-9 rounded-full bg-brass/15 border border-brass/40 grid place-items-center text-brass font-display text-sm">
+            JM
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="text-[13px] font-medium text-sidebar-foreground truncate">
+                James Mwangi
+              </div>
+              <div className="text-[10px] uppercase tracking-widest text-brass/70 truncate">
+                Administrator
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}
