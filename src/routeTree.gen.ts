@@ -9,20 +9,44 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyLinkRouteImport } from './routes/verify-link'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SalesRouteImport } from './routes/sales'
+import { Route as RestaurantRouteImport } from './routes/restaurant'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PosRouteImport } from './routes/pos'
 import { Route as LogisticsRouteImport } from './routes/logistics'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as CompanyRouteImport } from './routes/company'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SalesIndexRouteImport } from './routes/sales.index'
+import { Route as SalesSummariesRouteImport } from './routes/sales.summaries'
+import { Route as SalesSettingsRouteImport } from './routes/sales.settings'
+import { Route as SalesDashboardRouteImport } from './routes/sales.dashboard'
 import { Route as PurchasesSuppliersRouteImport } from './routes/purchases/suppliers'
 import { Route as PurchasesStockInRouteImport } from './routes/purchases/stock-in'
+import { Route as ProcurementRfqRouteImport } from './routes/procurement/rfq'
+import { Route as ProcurementPurchasesRouteImport } from './routes/procurement/purchases'
+import { Route as InventoryTransfersRouteImport } from './routes/inventory/transfers'
 import { Route as InventoryProductsRouteImport } from './routes/inventory/products'
+import { Route as InventoryCategoriesRouteImport } from './routes/inventory/categories'
 import { Route as InventoryBatchesRouteImport } from './routes/inventory/batches'
 import { Route as InventoryAdjustmentsRouteImport } from './routes/inventory/adjustments'
+import { Route as HrShiftsRouteImport } from './routes/hr/shifts'
+import { Route as HrPayrollRouteImport } from './routes/hr/payroll'
+import { Route as HrLeaveRouteImport } from './routes/hr/leave'
+import { Route as HrEmployeesRouteImport } from './routes/hr/employees'
+import { Route as AccommodationRoomsRouteImport } from './routes/accommodation/rooms'
+import { Route as AccommodationFloorPlanRouteImport } from './routes/accommodation/floor-plan'
+import { Route as AccommodationBookingsRouteImport } from './routes/accommodation/bookings'
 
+const VerifyLinkRoute = VerifyLinkRouteImport.update({
+  id: '/verify-link',
+  path: '/verify-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -33,9 +57,19 @@ const SalesRoute = SalesRouteImport.update({
   path: '/sales',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantRoute = RestaurantRouteImport.update({
+  id: '/restaurant',
+  path: '/restaurant',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PosRoute = PosRouteImport.update({
@@ -46,6 +80,11 @@ const PosRoute = PosRouteImport.update({
 const LogisticsRoute = LogisticsRouteImport.update({
   id: '/logistics',
   path: '/logistics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomersRoute = CustomersRouteImport.update({
@@ -63,6 +102,26 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SalesIndexRoute = SalesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SalesRoute,
+} as any)
+const SalesSummariesRoute = SalesSummariesRouteImport.update({
+  id: '/summaries',
+  path: '/summaries',
+  getParentRoute: () => SalesRoute,
+} as any)
+const SalesSettingsRoute = SalesSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => SalesRoute,
+} as any)
+const SalesDashboardRoute = SalesDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => SalesRoute,
+} as any)
 const PurchasesSuppliersRoute = PurchasesSuppliersRouteImport.update({
   id: '/purchases/suppliers',
   path: '/purchases/suppliers',
@@ -73,9 +132,29 @@ const PurchasesStockInRoute = PurchasesStockInRouteImport.update({
   path: '/purchases/stock-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementRfqRoute = ProcurementRfqRouteImport.update({
+  id: '/procurement/rfq',
+  path: '/procurement/rfq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementPurchasesRoute = ProcurementPurchasesRouteImport.update({
+  id: '/procurement/purchases',
+  path: '/procurement/purchases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryTransfersRoute = InventoryTransfersRouteImport.update({
+  id: '/inventory/transfers',
+  path: '/inventory/transfers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryProductsRoute = InventoryProductsRouteImport.update({
   id: '/inventory/products',
   path: '/inventory/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryCategoriesRoute = InventoryCategoriesRouteImport.update({
+  id: '/inventory/categories',
+  path: '/inventory/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryBatchesRoute = InventoryBatchesRouteImport.update({
@@ -88,52 +167,143 @@ const InventoryAdjustmentsRoute = InventoryAdjustmentsRouteImport.update({
   path: '/inventory/adjustments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HrShiftsRoute = HrShiftsRouteImport.update({
+  id: '/hr/shifts',
+  path: '/hr/shifts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HrPayrollRoute = HrPayrollRouteImport.update({
+  id: '/hr/payroll',
+  path: '/hr/payroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HrLeaveRoute = HrLeaveRouteImport.update({
+  id: '/hr/leave',
+  path: '/hr/leave',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HrEmployeesRoute = HrEmployeesRouteImport.update({
+  id: '/hr/employees',
+  path: '/hr/employees',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccommodationRoomsRoute = AccommodationRoomsRouteImport.update({
+  id: '/accommodation/rooms',
+  path: '/accommodation/rooms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccommodationFloorPlanRoute = AccommodationFloorPlanRouteImport.update({
+  id: '/accommodation/floor-plan',
+  path: '/accommodation/floor-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccommodationBookingsRoute = AccommodationBookingsRouteImport.update({
+  id: '/accommodation/bookings',
+  path: '/accommodation/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/company': typeof CompanyRoute
   '/customers': typeof CustomersRoute
+  '/login': typeof LoginRoute
   '/logistics': typeof LogisticsRoute
   '/pos': typeof PosRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
-  '/sales': typeof SalesRoute
+  '/restaurant': typeof RestaurantRoute
+  '/sales': typeof SalesRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/verify-link': typeof VerifyLinkRoute
+  '/accommodation/bookings': typeof AccommodationBookingsRoute
+  '/accommodation/floor-plan': typeof AccommodationFloorPlanRoute
+  '/accommodation/rooms': typeof AccommodationRoomsRoute
+  '/hr/employees': typeof HrEmployeesRoute
+  '/hr/leave': typeof HrLeaveRoute
+  '/hr/payroll': typeof HrPayrollRoute
+  '/hr/shifts': typeof HrShiftsRoute
   '/inventory/adjustments': typeof InventoryAdjustmentsRoute
   '/inventory/batches': typeof InventoryBatchesRoute
+  '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/transfers': typeof InventoryTransfersRoute
+  '/procurement/purchases': typeof ProcurementPurchasesRoute
+  '/procurement/rfq': typeof ProcurementRfqRoute
   '/purchases/stock-in': typeof PurchasesStockInRoute
   '/purchases/suppliers': typeof PurchasesSuppliersRoute
+  '/sales/dashboard': typeof SalesDashboardRoute
+  '/sales/settings': typeof SalesSettingsRoute
+  '/sales/summaries': typeof SalesSummariesRoute
+  '/sales/': typeof SalesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/company': typeof CompanyRoute
   '/customers': typeof CustomersRoute
+  '/login': typeof LoginRoute
   '/logistics': typeof LogisticsRoute
   '/pos': typeof PosRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
-  '/sales': typeof SalesRoute
+  '/restaurant': typeof RestaurantRoute
   '/settings': typeof SettingsRoute
+  '/verify-link': typeof VerifyLinkRoute
+  '/accommodation/bookings': typeof AccommodationBookingsRoute
+  '/accommodation/floor-plan': typeof AccommodationFloorPlanRoute
+  '/accommodation/rooms': typeof AccommodationRoomsRoute
+  '/hr/employees': typeof HrEmployeesRoute
+  '/hr/leave': typeof HrLeaveRoute
+  '/hr/payroll': typeof HrPayrollRoute
+  '/hr/shifts': typeof HrShiftsRoute
   '/inventory/adjustments': typeof InventoryAdjustmentsRoute
   '/inventory/batches': typeof InventoryBatchesRoute
+  '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/transfers': typeof InventoryTransfersRoute
+  '/procurement/purchases': typeof ProcurementPurchasesRoute
+  '/procurement/rfq': typeof ProcurementRfqRoute
   '/purchases/stock-in': typeof PurchasesStockInRoute
   '/purchases/suppliers': typeof PurchasesSuppliersRoute
+  '/sales/dashboard': typeof SalesDashboardRoute
+  '/sales/settings': typeof SalesSettingsRoute
+  '/sales/summaries': typeof SalesSummariesRoute
+  '/sales': typeof SalesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/company': typeof CompanyRoute
   '/customers': typeof CustomersRoute
+  '/login': typeof LoginRoute
   '/logistics': typeof LogisticsRoute
   '/pos': typeof PosRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
-  '/sales': typeof SalesRoute
+  '/restaurant': typeof RestaurantRoute
+  '/sales': typeof SalesRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/verify-link': typeof VerifyLinkRoute
+  '/accommodation/bookings': typeof AccommodationBookingsRoute
+  '/accommodation/floor-plan': typeof AccommodationFloorPlanRoute
+  '/accommodation/rooms': typeof AccommodationRoomsRoute
+  '/hr/employees': typeof HrEmployeesRoute
+  '/hr/leave': typeof HrLeaveRoute
+  '/hr/payroll': typeof HrPayrollRoute
+  '/hr/shifts': typeof HrShiftsRoute
   '/inventory/adjustments': typeof InventoryAdjustmentsRoute
   '/inventory/batches': typeof InventoryBatchesRoute
+  '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/transfers': typeof InventoryTransfersRoute
+  '/procurement/purchases': typeof ProcurementPurchasesRoute
+  '/procurement/rfq': typeof ProcurementRfqRoute
   '/purchases/stock-in': typeof PurchasesStockInRoute
   '/purchases/suppliers': typeof PurchasesSuppliersRoute
+  '/sales/dashboard': typeof SalesDashboardRoute
+  '/sales/settings': typeof SalesSettingsRoute
+  '/sales/summaries': typeof SalesSummariesRoute
+  '/sales/': typeof SalesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,66 +311,144 @@ export interface FileRouteTypes {
     | '/'
     | '/company'
     | '/customers'
+    | '/login'
     | '/logistics'
     | '/pos'
+    | '/register'
     | '/reports'
+    | '/restaurant'
     | '/sales'
     | '/settings'
+    | '/verify-link'
+    | '/accommodation/bookings'
+    | '/accommodation/floor-plan'
+    | '/accommodation/rooms'
+    | '/hr/employees'
+    | '/hr/leave'
+    | '/hr/payroll'
+    | '/hr/shifts'
     | '/inventory/adjustments'
     | '/inventory/batches'
+    | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/transfers'
+    | '/procurement/purchases'
+    | '/procurement/rfq'
     | '/purchases/stock-in'
     | '/purchases/suppliers'
+    | '/sales/dashboard'
+    | '/sales/settings'
+    | '/sales/summaries'
+    | '/sales/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/company'
     | '/customers'
+    | '/login'
     | '/logistics'
     | '/pos'
+    | '/register'
     | '/reports'
-    | '/sales'
+    | '/restaurant'
     | '/settings'
+    | '/verify-link'
+    | '/accommodation/bookings'
+    | '/accommodation/floor-plan'
+    | '/accommodation/rooms'
+    | '/hr/employees'
+    | '/hr/leave'
+    | '/hr/payroll'
+    | '/hr/shifts'
     | '/inventory/adjustments'
     | '/inventory/batches'
+    | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/transfers'
+    | '/procurement/purchases'
+    | '/procurement/rfq'
     | '/purchases/stock-in'
     | '/purchases/suppliers'
+    | '/sales/dashboard'
+    | '/sales/settings'
+    | '/sales/summaries'
+    | '/sales'
   id:
     | '__root__'
     | '/'
     | '/company'
     | '/customers'
+    | '/login'
     | '/logistics'
     | '/pos'
+    | '/register'
     | '/reports'
+    | '/restaurant'
     | '/sales'
     | '/settings'
+    | '/verify-link'
+    | '/accommodation/bookings'
+    | '/accommodation/floor-plan'
+    | '/accommodation/rooms'
+    | '/hr/employees'
+    | '/hr/leave'
+    | '/hr/payroll'
+    | '/hr/shifts'
     | '/inventory/adjustments'
     | '/inventory/batches'
+    | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/transfers'
+    | '/procurement/purchases'
+    | '/procurement/rfq'
     | '/purchases/stock-in'
     | '/purchases/suppliers'
+    | '/sales/dashboard'
+    | '/sales/settings'
+    | '/sales/summaries'
+    | '/sales/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CompanyRoute: typeof CompanyRoute
   CustomersRoute: typeof CustomersRoute
+  LoginRoute: typeof LoginRoute
   LogisticsRoute: typeof LogisticsRoute
   PosRoute: typeof PosRoute
+  RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
-  SalesRoute: typeof SalesRoute
+  RestaurantRoute: typeof RestaurantRoute
+  SalesRoute: typeof SalesRouteWithChildren
   SettingsRoute: typeof SettingsRoute
+  VerifyLinkRoute: typeof VerifyLinkRoute
+  AccommodationBookingsRoute: typeof AccommodationBookingsRoute
+  AccommodationFloorPlanRoute: typeof AccommodationFloorPlanRoute
+  AccommodationRoomsRoute: typeof AccommodationRoomsRoute
+  HrEmployeesRoute: typeof HrEmployeesRoute
+  HrLeaveRoute: typeof HrLeaveRoute
+  HrPayrollRoute: typeof HrPayrollRoute
+  HrShiftsRoute: typeof HrShiftsRoute
   InventoryAdjustmentsRoute: typeof InventoryAdjustmentsRoute
   InventoryBatchesRoute: typeof InventoryBatchesRoute
+  InventoryCategoriesRoute: typeof InventoryCategoriesRoute
   InventoryProductsRoute: typeof InventoryProductsRoute
+  InventoryTransfersRoute: typeof InventoryTransfersRoute
+  ProcurementPurchasesRoute: typeof ProcurementPurchasesRoute
+  ProcurementRfqRoute: typeof ProcurementRfqRoute
   PurchasesStockInRoute: typeof PurchasesStockInRoute
   PurchasesSuppliersRoute: typeof PurchasesSuppliersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-link': {
+      id: '/verify-link'
+      path: '/verify-link'
+      fullPath: '/verify-link'
+      preLoaderRoute: typeof VerifyLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -215,11 +463,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SalesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant': {
+      id: '/restaurant'
+      path: '/restaurant'
+      fullPath: '/restaurant'
+      preLoaderRoute: typeof RestaurantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pos': {
@@ -234,6 +496,13 @@ declare module '@tanstack/react-router' {
       path: '/logistics'
       fullPath: '/logistics'
       preLoaderRoute: typeof LogisticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customers': {
@@ -257,6 +526,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sales/': {
+      id: '/sales/'
+      path: '/'
+      fullPath: '/sales/'
+      preLoaderRoute: typeof SalesIndexRouteImport
+      parentRoute: typeof SalesRoute
+    }
+    '/sales/summaries': {
+      id: '/sales/summaries'
+      path: '/summaries'
+      fullPath: '/sales/summaries'
+      preLoaderRoute: typeof SalesSummariesRouteImport
+      parentRoute: typeof SalesRoute
+    }
+    '/sales/settings': {
+      id: '/sales/settings'
+      path: '/settings'
+      fullPath: '/sales/settings'
+      preLoaderRoute: typeof SalesSettingsRouteImport
+      parentRoute: typeof SalesRoute
+    }
+    '/sales/dashboard': {
+      id: '/sales/dashboard'
+      path: '/dashboard'
+      fullPath: '/sales/dashboard'
+      preLoaderRoute: typeof SalesDashboardRouteImport
+      parentRoute: typeof SalesRoute
+    }
     '/purchases/suppliers': {
       id: '/purchases/suppliers'
       path: '/purchases/suppliers'
@@ -271,11 +568,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PurchasesStockInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/procurement/rfq': {
+      id: '/procurement/rfq'
+      path: '/procurement/rfq'
+      fullPath: '/procurement/rfq'
+      preLoaderRoute: typeof ProcurementRfqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/purchases': {
+      id: '/procurement/purchases'
+      path: '/procurement/purchases'
+      fullPath: '/procurement/purchases'
+      preLoaderRoute: typeof ProcurementPurchasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/transfers': {
+      id: '/inventory/transfers'
+      path: '/inventory/transfers'
+      fullPath: '/inventory/transfers'
+      preLoaderRoute: typeof InventoryTransfersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/products': {
       id: '/inventory/products'
       path: '/inventory/products'
       fullPath: '/inventory/products'
       preLoaderRoute: typeof InventoryProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/categories': {
+      id: '/inventory/categories'
+      path: '/inventory/categories'
+      fullPath: '/inventory/categories'
+      preLoaderRoute: typeof InventoryCategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory/batches': {
@@ -292,24 +617,113 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryAdjustmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hr/shifts': {
+      id: '/hr/shifts'
+      path: '/hr/shifts'
+      fullPath: '/hr/shifts'
+      preLoaderRoute: typeof HrShiftsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hr/payroll': {
+      id: '/hr/payroll'
+      path: '/hr/payroll'
+      fullPath: '/hr/payroll'
+      preLoaderRoute: typeof HrPayrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hr/leave': {
+      id: '/hr/leave'
+      path: '/hr/leave'
+      fullPath: '/hr/leave'
+      preLoaderRoute: typeof HrLeaveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hr/employees': {
+      id: '/hr/employees'
+      path: '/hr/employees'
+      fullPath: '/hr/employees'
+      preLoaderRoute: typeof HrEmployeesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accommodation/rooms': {
+      id: '/accommodation/rooms'
+      path: '/accommodation/rooms'
+      fullPath: '/accommodation/rooms'
+      preLoaderRoute: typeof AccommodationRoomsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accommodation/floor-plan': {
+      id: '/accommodation/floor-plan'
+      path: '/accommodation/floor-plan'
+      fullPath: '/accommodation/floor-plan'
+      preLoaderRoute: typeof AccommodationFloorPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accommodation/bookings': {
+      id: '/accommodation/bookings'
+      path: '/accommodation/bookings'
+      fullPath: '/accommodation/bookings'
+      preLoaderRoute: typeof AccommodationBookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface SalesRouteChildren {
+  SalesDashboardRoute: typeof SalesDashboardRoute
+  SalesSettingsRoute: typeof SalesSettingsRoute
+  SalesSummariesRoute: typeof SalesSummariesRoute
+  SalesIndexRoute: typeof SalesIndexRoute
+}
+
+const SalesRouteChildren: SalesRouteChildren = {
+  SalesDashboardRoute: SalesDashboardRoute,
+  SalesSettingsRoute: SalesSettingsRoute,
+  SalesSummariesRoute: SalesSummariesRoute,
+  SalesIndexRoute: SalesIndexRoute,
+}
+
+const SalesRouteWithChildren = SalesRoute._addFileChildren(SalesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CompanyRoute: CompanyRoute,
   CustomersRoute: CustomersRoute,
+  LoginRoute: LoginRoute,
   LogisticsRoute: LogisticsRoute,
   PosRoute: PosRoute,
+  RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
-  SalesRoute: SalesRoute,
+  RestaurantRoute: RestaurantRoute,
+  SalesRoute: SalesRouteWithChildren,
   SettingsRoute: SettingsRoute,
+  VerifyLinkRoute: VerifyLinkRoute,
+  AccommodationBookingsRoute: AccommodationBookingsRoute,
+  AccommodationFloorPlanRoute: AccommodationFloorPlanRoute,
+  AccommodationRoomsRoute: AccommodationRoomsRoute,
+  HrEmployeesRoute: HrEmployeesRoute,
+  HrLeaveRoute: HrLeaveRoute,
+  HrPayrollRoute: HrPayrollRoute,
+  HrShiftsRoute: HrShiftsRoute,
   InventoryAdjustmentsRoute: InventoryAdjustmentsRoute,
   InventoryBatchesRoute: InventoryBatchesRoute,
+  InventoryCategoriesRoute: InventoryCategoriesRoute,
   InventoryProductsRoute: InventoryProductsRoute,
+  InventoryTransfersRoute: InventoryTransfersRoute,
+  ProcurementPurchasesRoute: ProcurementPurchasesRoute,
+  ProcurementRfqRoute: ProcurementRfqRoute,
   PurchasesStockInRoute: PurchasesStockInRoute,
   PurchasesSuppliersRoute: PurchasesSuppliersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

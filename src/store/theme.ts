@@ -18,6 +18,6 @@ export const useThemeStore = create<ThemeState>()(
       setMode: (mode) => set({ mode }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     }),
-    { name: "fahari-theme" }
-  )
+    { name: "fahari-theme" },
+  ),
 );

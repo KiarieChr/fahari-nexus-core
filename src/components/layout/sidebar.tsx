@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { navSections, type NavSection } from "./nav-config";
 import { useThemeStore } from "@/store/theme";
+import { useCompany } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 
 function isSectionActive(section: NavSection, pathname: string) {
@@ -15,23 +16,50 @@ function isSectionActive(section: NavSection, pathname: string) {
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const collapsed = useThemeStore((s) => s.sidebarCollapsed);
+  const { data: company } = useCompany();
 
-  // single-open accordion: track currently-open section id
-  const initial =
-    navSections.find((s) => s.children && isSectionActive(s, pathname))?.id ?? null;
+  // Filter navigation based on enabled company modules
+  const filteredNav = useMemo(
+    () =>
+      navSections.filter((section) => {
+        if (section.id === "restaurant-pro") return company?.enable_restaurant_mode;
+        if (section.id === "hr") return company?.enable_hr_module;
+        if (section.id === "accommodation") return company?.enable_accommodation_module;
+        return true; // Show all other modules by default
+      }),
+    [company],
+  );
+
+  const initial = useMemo(
+    () => filteredNav.find((s) => s.children && isSectionActive(s, pathname))?.id ?? null,
+    [filteredNav, pathname],
+  );
+
   const [openId, setOpenId] = useState<string | null>(initial);
 
-  // Auto-open the section that contains the active route on navigation
+  const [user, setUser] = useState<any>(null);
+
   useEffect(() => {
-    const active = navSections.find((s) => s.children && isSectionActive(s, pathname));
-    if (active && active.id !== openId) setOpenId(active.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+    const active = filteredNav.find((s) => s.children && isSectionActive(s, pathname));
+    if (active) setOpenId(active.id);
+  }, [pathname, filteredNav]);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem("fahari-user");
+    if (savedUser) setUser(JSON.parse(savedUser));
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("fahari-token");
+    localStorage.removeItem("fahari-refresh");
+    localStorage.removeItem("fahari-user");
+    window.location.href = "/login";
+  };
 
   return (
     <aside
       className={cn(
-        "shrink-0 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-out",
+        "shrink-0 sticky top-0 h-dvh flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-out z-50",
         collapsed ? "w-[76px]" : "w-72",
       )}
     >
@@ -52,8 +80,8 @@ export function AppSidebar() {
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        {navSections.map((section) => {
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
+        {filteredNav.map((section) => {
           const Icon = section.icon;
           const active = isSectionActive(section, pathname);
           const hasChildren = !!section.children?.length;
@@ -137,21 +165,27 @@ export function AppSidebar() {
       {/* Footer / user */}
       <div className="px-3 py-4 border-t border-sidebar-border/60">
         <div
+          onClick={handleLogout}
           className={cn(
-            "flex items-center gap-3 rounded-md px-2 py-2 hover:bg-sidebar-accent/60 transition-colors cursor-pointer",
+            "flex items-center gap-3 rounded-md px-2 py-2 hover:bg-sidebar-accent/60 transition-colors cursor-pointer group",
             collapsed && "justify-center",
           )}
         >
-          <div className="size-9 rounded-full bg-brass/15 border border-brass/40 grid place-items-center text-brass font-display text-sm">
-            JM
+          <div className="size-9 rounded-full bg-brass/15 border border-brass/40 grid place-items-center text-brass font-display text-sm group-hover:bg-brass group-hover:text-navy-deep transition-all">
+            {user?.full_name
+              ? user.full_name
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .join("")
+              : "UN"}
           </div>
           {!collapsed && (
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="text-[13px] font-medium text-sidebar-foreground truncate">
-                James Mwangi
+                {user?.full_name || "User Name"}
               </div>
               <div className="text-[10px] uppercase tracking-widest text-brass/70 truncate">
-                Administrator
+                {user?.company || "Administrator"}
               </div>
             </div>
           )}

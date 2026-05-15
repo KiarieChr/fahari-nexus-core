@@ -1,12 +1,6 @@
 import { Sparkles } from "lucide-react";
 
-export function ComingSoon({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+export function ComingSoon({ title, description }: { title: string; description: string }) {
   return (
     <div className="px-6 md:px-10 py-12 max-w-[1400px] mx-auto">
       <div className="rounded-xl border border-dashed border-brass/40 bg-card p-12 text-center">

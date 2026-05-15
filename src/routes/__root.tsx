@@ -1,10 +1,18 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import {
+  Outlet,
+  Link,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+  redirect,
+} from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import appCss from "../styles.css?url";
 import { queryClient } from "@/lib/query-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout/app-layout";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -29,6 +37,28 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRoute({
+  beforeLoad: ({ location }) => {
+    const publicPaths = ["/login", "/register"];
+
+    // Skip auth check on server as localStorage is client-only
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("fahari-token");
+
+    if (!token && !publicPaths.includes(location.pathname)) {
+      throw redirect({
+        to: "/login",
+        search: {
+          redirect: location.href,
+        },
+      });
+    }
+
+    // If logged in and on login/register, go to dashboard
+    if (token && publicPaths.includes(location.pathname)) {
+      throw redirect({ to: "/" });
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -88,6 +118,7 @@ function RootComponent() {
         <AppLayout>
           <Outlet />
         </AppLayout>
+        <Toaster />
       </ThemeProvider>
     </QueryClientProvider>
   );
