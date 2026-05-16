@@ -17,6 +17,17 @@ interface BillTemplateProps {
   tax?: number;
   total: number;
   billNumber: string;
+  // Personalization
+  logoUrl?: string;
+  staffName: string;
+  terminalId?: string;
+  // eTIMS compliant fields
+  kraPin?: string;
+  buyerPin?: string;
+  serialNumber?: string;
+  invoiceNumber?: string;
+  cuId?: string;
+  isEtimsEnabled?: boolean;
 }
 
 export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>((props, ref) => {
@@ -31,83 +42,156 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
     tax = 0,
     total,
     billNumber,
+    logoUrl,
+    staffName,
+    terminalId,
+    kraPin,
+    buyerPin,
+    serialNumber,
+    invoiceNumber,
+    cuId,
+    isEtimsEnabled = false,
   } = props;
 
   return (
     <div
       ref={ref}
-      className="w-[80mm] p-4 bg-white text-black font-mono text-sm leading-tight"
+      className="w-[80mm] p-6 bg-white text-black font-mono text-[10px] leading-[1.2] print:p-0"
       style={{ margin: "0 auto" }}
     >
-      {/* Header */}
-      <div className="text-center space-y-1 mb-4">
-        <h1 className="font-black text-lg uppercase">{businessName}</h1>
-        <p className="text-[10px]">{address}</p>
-        <p className="text-[10px]">Tel: {phone}</p>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          body {
+            background: white;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}} />
+      {/* Logo & Header */}
+      <div className="flex flex-col items-center text-center space-y-1 mb-4">
+        {logoUrl && (
+          <img src={logoUrl} alt="logo" className="w-16 h-16 object-contain mb-2" />
+        )}
+        <h1 className="font-black text-sm uppercase leading-none">{businessName}</h1>
+        <p className="uppercase">{address}</p>
+        <p>TEL: {phone}</p>
+        {kraPin && <p className="font-bold">P.I.N: {kraPin}</p>}
       </div>
 
-      <div className="border-t border-b border-black border-dashed py-2 mb-4 space-y-1">
+      <div className="text-center py-2 border-y border-black border-dashed mb-4 font-bold tracking-widest">
+        - START OF FISCAL RECEIPT -
+      </div>
+
+      {/* Transaction Details */}
+      <div className="space-y-0.5 mb-4">
         <div className="flex justify-between">
-          <span>Bill #:</span>
-          <span className="font-bold">{billNumber}</span>
+          <span>Tmn ID:</span>
+          <span>{terminalId || "TERMINAL-01"}</span>
         </div>
         <div className="flex justify-between">
-          <span>Table:</span>
-          <span className="font-bold">{tableNumber}</span>
+          <span>Trans no:</span>
+          <span>{billNumber}</span>
         </div>
         <div className="flex justify-between">
           <span>Date:</span>
           <span>{new Date().toLocaleString()}</span>
         </div>
         <div className="flex justify-between">
-          <span>Waiter:</span>
-          <span>{waiterName}</span>
+          <span>{waiterName}:</span>
+          <span className="font-bold uppercase">{staffName}</span>
         </div>
+        {buyerPin && (
+          <div className="flex justify-between">
+            <span>Customer PIN:</span>
+            <span>{buyerPin}</span>
+          </div>
+        )}
       </div>
 
-      {/* Items */}
+      {/* Items Section */}
       <div className="space-y-2 mb-4">
-        <div className="flex justify-between font-bold border-b border-black pb-1">
-          <span className="w-1/2">Item</span>
-          <span className="w-1/4 text-center">Qty</span>
-          <span className="w-1/4 text-right">Price</span>
-        </div>
         {items.map((item, idx) => (
-          <div key={idx} className="flex justify-between items-start">
-            <span className="w-1/2 leading-none">{item.name}</span>
-            <span className="w-1/4 text-center">{item.quantity}</span>
-            <span className="w-1/4 text-right">
-              {(item.price * item.quantity).toLocaleString()}
-            </span>
+          <div key={idx} className="space-y-0.5">
+            <div className="flex justify-between">
+              <span className="w-full truncate">{idx + 1}. {item.name}</span>
+            </div>
+            <div className="flex justify-between pl-4">
+              <span>KES {item.price.toLocaleString()} x {item.quantity}</span>
+              <span className="font-bold">{(item.price * item.quantity).toLocaleString()}</span>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Totals */}
-      <div className="border-t border-black border-dashed pt-2 space-y-1">
+      {/* Payment Details */}
+      <div className="border-t border-black border-dashed pt-2 space-y-0.5 mb-4">
+        <div className="text-center font-bold mb-2">--------- PAYMENT DETAILS ---------</div>
         <div className="flex justify-between">
-          <span>Subtotal:</span>
-          <span>{subtotal.toLocaleString()}</span>
+          <span>SUB Incl. TAX:</span>
+          <span>{total.toLocaleString()}</span>
         </div>
-        {tax > 0 && (
-          <div className="flex justify-between">
-            <span>Tax (16%):</span>
-            <span>{tax.toLocaleString()}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-lg font-black mt-2 pt-2 border-t border-black">
-          <span>TOTAL:</span>
-          <span>Ksh {total.toLocaleString()}</span>
+        <div className="flex justify-between">
+          <span>VAT 16%:</span>
+          <span>{tax?.toLocaleString() || "0.00"}</span>
+        </div>
+        <div className="flex justify-between text-sm font-black pt-2 border-t border-black mt-2">
+          <span>Amount Due:</span>
+          <span>{total.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="text-center mt-8 space-y-2 pt-4 border-t border-black border-dashed">
-        <p className="text-[10px] italic">Thank you for dining with us!</p>
-        <div className="flex justify-center">
-          <div className="w-32 h-1 bg-black/10 rounded-full" />
+      {/* Tax Breakdown (eTIMS Style) */}
+      <div className="border-t border-black border-dashed pt-2 space-y-0.5 mb-4">
+        <div className="grid grid-cols-3 font-bold border-b border-black pb-1 mb-1">
+          <span>VATGrp</span>
+          <span className="text-center">VATABLE AMT</span>
+          <span className="text-right">VAT AMT</span>
         </div>
-        <p className="text-[8px] text-gray-500 uppercase">Powered by Fahari Nexus ERP</p>
+        <div className="grid grid-cols-3">
+          <span>A - 16%</span>
+          <span className="text-center">{subtotal.toLocaleString()}</span>
+          <span className="text-right">{tax?.toLocaleString() || "0.00"}</span>
+        </div>
+      </div>
+
+      {/* Control Unit Section */}
+      {isEtimsEnabled && (
+        <div className="border-t border-black border-dashed pt-2 space-y-1 mb-4">
+          <div className="text-center font-bold">----- CONTROL UNIT INFO -----</div>
+          <div className="flex flex-col gap-0.5 uppercase text-[8px]">
+            <div className="flex justify-between">
+              <span>CU Serial No:</span>
+              <span className="font-bold">{serialNumber}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>CU Invoice No:</span>
+              <span className="font-bold">{invoiceNumber || "INV-" + billNumber}</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-center pt-4">
+             {/* QR Code Placeholder */}
+             <div className="w-40 h-40 border border-black p-2 bg-white flex flex-col items-center justify-center">
+                <div className="w-full h-full border border-dashed border-black/20 flex items-center justify-center relative">
+                   <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.05)_10px,rgba(0,0,0,0.05)_20px)]" />
+                   <span className="text-[10px] font-bold z-10">eTIMS QR CODE</span>
+                </div>
+             </div>
+             <p className="text-[8px] mt-2 font-bold uppercase">- END OF FISCAL RECEIPT -</p>
+             <p className="text-[8px] uppercase tracking-tighter">REAL-TIME ETR SOLUTION</p>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="text-center mt-4 pt-4 border-t border-black border-dashed opacity-70">
+        <p>Thank you for your business!</p>
+        <p className="text-[7px]">Powered by Fahari Nexus ERP</p>
       </div>
     </div>
   );

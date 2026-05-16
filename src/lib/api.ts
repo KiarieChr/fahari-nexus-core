@@ -32,6 +32,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const clearAuthData = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("fahari-token");
+    localStorage.removeItem("fahari-refresh");
+    localStorage.removeItem("fahari-user");
+  }
+};
+
 // Response interceptor: Handle expired sessions
 api.interceptors.response.use(
   (response) => {
@@ -66,9 +74,7 @@ api.interceptors.response.use(
       // Only logout if we actually have a token that is now being rejected
       if (token) {
         console.warn("Session expired or invalid token. Redirecting to login...");
-        localStorage.removeItem("fahari-token");
-        localStorage.removeItem("fahari-refresh");
-        localStorage.removeItem("fahari-user");
+        clearAuthData();
         window.location.href = "/login";
       }
     }

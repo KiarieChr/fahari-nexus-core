@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   ShoppingCart,
@@ -15,19 +15,29 @@ import {
   Store,
   ChevronRight,
   ClipboardList,
+  Users,
+  Coins,
 } from "lucide-react";
 import {
   useProducts,
+  useCategories,
   useCreateSale,
   Product,
   useCompany,
-  useCategories,
   useCreateKDSOrder,
   useTables,
+  useCustomers,
+  useInventorySettings,
+  useMpesaStkPush,
+  useMpesaTransactions,
+  useUserProfile,
 } from "@/lib/api-hooks";
+import { Phone, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePrint } from "@/hooks/usePrint";
 import { KOTTemplate } from "@/components/pos/KOTTemplate";
+import { BillTemplate } from "@/components/pos/BillTemplate";
+import { useEtimsConfig } from "@/lib/api-hooks";
 
 export const Route = createFileRoute("/pos")({
   head: () => ({
@@ -50,7 +60,22 @@ type PosSection = "general" | "restaurant" | "bar";
 
 function PosPage() {
   const { data: company, isLoading: loadingCompany } = useCompany();
+  const { data: profile } = useUserProfile();
+  
+  // Persistent Terminal ID (Unique to this browser/device)
+  const [terminalId, setTerminalId] = useState<string>("");
+
+  useEffect(() => {
+    let id = localStorage.getItem("fahari-terminal-id");
+    if (!id) {
+      id = "TMN-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      localStorage.setItem("fahari-terminal-id", id);
+    }
+    setTerminalId(id);
+  }, []);
+
   const kotRef = useRef<HTMLDivElement>(null);
+  const billRef = useRef<HTMLDivElement>(null);
   const { printElement } = usePrint();
   const [activeSection, setActiveSection] = useState<PosSection>("general");
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,6 +85,15 @@ function PosPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  
+  // New CRM State
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState(0);
+  const [amountPaid, setAmountPaid] = useState<string>("");
+  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null);
+  const [isMpesaWaiting, setIsMpesaWaiting] = useState(false);
 
   const { data, isLoading } = useProducts();
   const { data: catData } = useCategories();
@@ -70,6 +104,21 @@ function PosPage() {
   const createKDSOrder = useCreateKDSOrder();
   const { data: tableData } = useTables();
   const tables = tableData?.results || [];
+
+  const { data: customerData } = useCustomers();
+  const customers = customerData?.results || [];
+  
+  const { data: invSettings } = useInventorySettings();
+  const { data: etimsData } = useEtimsConfig();
+  const activeEtims = etimsData?.find(e => e.is_active);
+
+  const selectedCustomer = useMemo(() => {
+    const customer = customers.find(c => c.id === selectedCustomerId);
+    if (customer?.phone && !mpesaPhone) {
+      setMpesaPhone(customer.phone);
+    }
+    return customer;
+  }, [customers, selectedCustomerId, mpesaPhone]);
 
   // Determine available sections
   const availableSections = useMemo(() => {
@@ -135,7 +184,63 @@ function PosPage() {
 
   const subtotal = cart.reduce((acc, item) => acc + item.selling_price * item.quantity, 0);
   const tax = subtotal * 0.16;
-  const total = subtotal + tax;
+  
+  const loyaltyDiscount = useMemo(() => {
+    if (!invSettings?.enable_loyalty_program || !loyaltyPointsToRedeem) return 0;
+    return loyaltyPointsToRedeem * (invSettings.loyalty_point_value || 1);
+  }, [invSettings, loyaltyPointsToRedeem]);
+
+  const total = Math.max(0, subtotal + tax - loyaltyDiscount);
+
+  // Sync amount paid for non-credit sales
+  useEffect(() => {
+    if (paymentMethod !== 'credit') {
+      setAmountPaid(total.toString());
+    }
+  }, [total, paymentMethod]);
+
+  const stkPush = useMpesaStkPush();
+  const { data: mpesaTxData } = useMpesaTransactions(checkoutRequestId || undefined);
+
+  // Auto-complete sale when M-Pesa succeeds
+  useEffect(() => {
+    const tx = mpesaTxData?.results?.[0];
+    if (tx?.status === 'SUCCESS' && isMpesaWaiting) {
+      setIsMpesaWaiting(false);
+      setCheckoutRequestId(null);
+      finalizeSale();
+    } else if (tx?.status === 'FAILED' && isMpesaWaiting) {
+      setIsMpesaWaiting(false);
+      setCheckoutRequestId(null);
+      setIsError("M-Pesa payment failed or was cancelled.");
+    }
+  }, [mpesaTxData, isMpesaWaiting]);
+
+  const finalizeSale = async () => {
+    const saleData = {
+      items: cart.map((item) => ({
+        product: item.id,
+        quantity: item.quantity,
+        unit_price: item.selling_price,
+      })),
+      customer: selectedCustomerId,
+      payment_method: paymentMethod,
+      amount_paid: Number(amountPaid),
+      loyalty_points_redeemed: loyaltyPointsToRedeem,
+      tax_percentage: 16,
+      order_type: orderType,
+    };
+    await createSale.mutateAsync(saleData);
+    
+    setIsSuccess(true);
+    // setCart([]) // MOVED TO handleCheckout
+    setTableNumber("");
+    setSelectedCustomerId(null);
+    setLoyaltyPointsToRedeem(0);
+    setPaymentMethod("cash");
+    setMpesaPhone("");
+    setTimeout(() => setIsSuccess(false), 3000);
+  };
 
   const handleCheckout = async () => {
     try {
@@ -154,31 +259,48 @@ function PosPage() {
         await createKDSOrder.mutateAsync(kdsData);
 
         // Print physical ticket
-        if (kotRef.current) {
+        // Filter items for KOT (only restaurant/bar)
+        const kotItems = cart.filter(item => 
+          item.category_type === "restaurant" || item.category_type === "bar"
+        );
+
+        if (kotRef.current && kotItems.length > 0) {
           await printElement(kotRef.current);
         }
+        
+        // Also print Bill for restaurant
+        if (billRef.current) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // Slight delay between prints
+          await printElement(billRef.current);
+        }
+        
+        setIsSuccess(true);
+        setCart([]); // Clear cart after printing
+        setTableNumber("");
+        setTimeout(() => setIsSuccess(false), 3000);
+      } else if (paymentMethod === 'mpesa') {
+        if (!mpesaPhone) {
+          setIsError("Please enter an M-Pesa phone number");
+          return;
+        }
+        const response = await stkPush.mutateAsync({
+          phone: mpesaPhone,
+          amount: total,
+          // metadata could go here
+        });
+        setCheckoutRequestId(response.CheckoutRequestID);
+        setIsMpesaWaiting(true);
       } else {
-        // Retail/Bar Sale
-        const saleData = {
-          items: cart.map((item) => ({
-            product: item.id,
-            quantity: item.quantity,
-            unit_price: item.selling_price,
-          })),
-          payment_method: "cash",
-          amount_paid: total,
-          tax_percentage: 16,
-          order_type: orderType,
-        };
-        await createSale.mutateAsync(saleData);
+        await finalizeSale();
+        // Print Receipt for Retail/Bar
+        if (billRef.current) {
+          await printElement(billRef.current);
+        }
+        setCart([]); // Clear cart after printing
       }
-
-      setIsSuccess(true);
-      setCart([]);
-      setTableNumber("");
-      setTimeout(() => setIsSuccess(false), 3000);
     } catch (err: any) {
-      setIsError(err.response?.data?.error || "Transaction failed");
+      setIsError(err.response?.data?.error || err.message || "Transaction failed");
+      setIsMpesaWaiting(false);
       setTimeout(() => setIsError(null), 5000);
     }
   };
@@ -417,7 +539,6 @@ function PosPage() {
                       {t.name} {t.status === "occupied" ? "(Occupied)" : ""}
                     </option>
                   ))}
-                  {/* Fallback for manual entry if needed, but primarily use database tables */}
                   {!tables.length && <option value="POS-1">Terminal Default</option>}
                 </select>
               </div>
@@ -438,6 +559,73 @@ function PosPage() {
             </div>
           </div>
         )}
+
+        {/* Customer Selection */}
+        <div className="px-4 mt-6 space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground ml-1 flex justify-between">
+              Customer Selection
+              {selectedCustomer && (
+                <span className="text-brass normal-case tracking-normal">
+                  Pts: {selectedCustomer.loyalty_points} | Debt: KES {selectedCustomer.outstanding_debt}
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <select
+                value={selectedCustomerId || ""}
+                onChange={(e) => setSelectedCustomerId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full h-10 pl-9 pr-3 rounded-lg bg-muted/30 border border-border text-xs focus:ring-2 focus:ring-brass/20 outline-none appearance-none"
+              >
+                <option value="">Walk-in Customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.phone || "No phone"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Loyalty Redemption */}
+          {invSettings?.enable_loyalty_program && selectedCustomer && selectedCustomer.loyalty_points >= (invSettings?.min_points_to_redeem ?? 0) && (
+            <div className="p-4 rounded-xl border border-brass/20 bg-brass/5 space-y-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Coins className="size-4 text-brass" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-foreground">
+                    Loyalty Rewards
+                  </span>
+                </div>
+                <span className="text-[10px] font-medium text-brass">
+                  Value: KES {invSettings.loyalty_point_value}/pt
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  max={selectedCustomer.loyalty_points}
+                  value={loyaltyPointsToRedeem || ""}
+                  onChange={(e) => setLoyaltyPointsToRedeem(Math.min(selectedCustomer.loyalty_points, Number(e.target.value)))}
+                  placeholder="Points to use..."
+                  className="flex-1 h-9 px-3 rounded-lg bg-background border border-border text-xs outline-none focus:border-brass/40"
+                />
+                <button 
+                  onClick={() => setLoyaltyPointsToRedeem(0)}
+                  className="px-3 h-9 rounded-lg border border-border text-[10px] font-bold uppercase hover:bg-muted"
+                >
+                  Clear
+                </button>
+              </div>
+              {loyaltyDiscount > 0 && (
+                <p className="text-[10px] text-emerald-500 font-medium">
+                  Applying KES {loyaltyDiscount.toLocaleString()} discount
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -520,11 +708,74 @@ function PosPage() {
               KES {subtotal.toLocaleString()}
             </span>
           </div>
-          <div className="flex justify-between text-xs font-medium text-muted-foreground">
-            <span>VAT (16%)</span>
-            <span className="tabular-nums font-bold text-foreground">
-              KES {tax.toLocaleString()}
-            </span>
+          {/* Tax row removed as per user request */}
+          {loyaltyDiscount > 0 && (
+            <div className="flex justify-between text-xs font-medium text-emerald-500">
+              <span>Loyalty Discount</span>
+              <span className="tabular-nums font-bold">
+                - KES {loyaltyDiscount.toLocaleString()}
+              </span>
+            </div>
+          )}
+
+          {/* Payment Method & Amount Paid */}
+          <div className="pt-4 space-y-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPaymentMethod("cash")}
+                className={cn(
+                  "flex-1 h-9 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all",
+                  paymentMethod === "cash" ? "bg-navy text-white border-navy" : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                Cash
+              </button>
+              <button
+                onClick={() => setPaymentMethod("credit")}
+                disabled={!selectedCustomerId}
+                className={cn(
+                  "flex-1 h-9 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all",
+                  paymentMethod === "credit" ? "bg-rose-900 text-white border-rose-900" : "border-border text-muted-foreground hover:bg-muted disabled:opacity-30"
+                )}
+              >
+                Debt / Credit
+              </button>
+              <button
+                onClick={() => setPaymentMethod("mpesa")}
+                className={cn(
+                  "flex-1 h-9 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all",
+                  paymentMethod === "mpesa" ? "bg-emerald-900 text-white border-emerald-900" : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                M-Pesa
+              </button>
+            </div>
+            
+            {paymentMethod === "mpesa" && (
+              <div className="relative animate-in slide-in-from-top-2 duration-200">
+                <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={mpesaPhone}
+                  onChange={(e) => setMpesaPhone(e.target.value)}
+                  className="w-full h-10 pl-9 pr-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-sm font-medium outline-none focus:border-emerald-500/40"
+                  placeholder="Enter M-Pesa Number..."
+                />
+              </div>
+            )}
+            
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">
+                PAID:
+              </span>
+              <input
+                type="number"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(e.target.value)}
+                className="w-full h-10 pl-12 pr-4 rounded-lg bg-muted/20 border border-border text-sm font-bold tabular-nums outline-none focus:border-brass/40"
+                placeholder="0.00"
+              />
+            </div>
           </div>
           <div className="flex justify-between items-end pt-4 border-t border-border">
             <div className="font-display text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -545,12 +796,13 @@ function PosPage() {
                 : activeSection === "restaurant"
                   ? "bg-orange-800 shadow-orange-950/20"
                   : "bg-purple-800 shadow-purple-950/20",
+              isMpesaWaiting && "bg-emerald-600 animate-pulse"
             )}
           >
-            {createSale.isPending ? (
+            {createSale.isPending || isMpesaWaiting ? (
               <>
                 <Loader2 className="size-5 animate-spin" />
-                Processing...
+                {isMpesaWaiting ? "Awaiting Payment PIN..." : "Processing..."}
               </>
             ) : (
               <>
@@ -562,7 +814,7 @@ function PosPage() {
         </div>
       </aside>
 
-      {/* Hidden KOT Template for Printing */}
+      {/* Hidden Receipts for Printing */}
       <div className="hidden">
         <KOTTemplate
           ref={kotRef}
@@ -570,7 +822,38 @@ function PosPage() {
           waiterName="POS Staff"
           orderType={orderType}
           round={1}
-          items={cart.map((item) => ({ name: item.name, quantity: item.quantity }))}
+          items={cart
+            .filter(item => item.category_type === "restaurant" || item.category_type === "bar")
+            .map((item) => ({ name: item.name, quantity: item.quantity }))
+          }
+        />
+        <BillTemplate
+          ref={billRef}
+          businessName={company?.name}
+          address={company?.primary_address}
+          phone={company?.phone_number}
+          logoUrl={company?.logo}
+          tableNumber={tableNumber || "COUNTER"}
+          terminalId={terminalId}
+          staffName={profile?.first_name || "STAFF"}
+          waiterName={
+            cart.some(item => item.category_type === "restaurant" || item.category_type === "bar")
+              ? "Waiter"
+              : "Staff"
+          }
+          billNumber={`BN-${Date.now().toString().slice(-6)}`}
+          items={cart.map(item => ({ 
+            name: item.name, 
+            quantity: item.quantity, 
+            price: item.selling_price 
+          }))}
+          subtotal={subtotal}
+          tax={tax}
+          total={total}
+          kraPin={activeEtims?.kra_pin}
+          buyerPin={selectedCustomer?.tax_id}
+          serialNumber={activeEtims?.serial_number}
+          isEtimsEnabled={!!activeEtims}
         />
       </div>
     </div>

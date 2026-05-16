@@ -20,8 +20,18 @@ import {
   Users,
   Zap,
   AlertCircle,
+  Coins,
+  History,
+  TrendingUp,
 } from "lucide-react";
-import { useUserProfile, useUpdateProfile, useCompany, useUpdateCompany } from "@/lib/api-hooks";
+import { 
+  useUserProfile, 
+  useUpdateProfile, 
+  useCompany, 
+  useUpdateCompany,
+  useInventorySettings,
+  useUpdateInventorySettings
+} from "@/lib/api-hooks";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -36,7 +46,7 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
-type TabType = "account" | "business" | "pos" | "security" | "notifications";
+type TabType = "account" | "business" | "pos" | "crm" | "security" | "notifications";
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("account");
@@ -48,6 +58,8 @@ function SettingsPage() {
 
   const updateProfile = useUpdateProfile();
   const updateCompany = useUpdateCompany();
+  const { data: invSettings, isLoading: loadingInvSettings } = useInventorySettings();
+  const updateInvSettings = useUpdateInventorySettings();
 
   // Local state for forms
   const [profileForm, setProfileForm] = useState({
@@ -72,6 +84,13 @@ function SettingsPage() {
     enable_bar_mode: false,
     enable_hr_module: false,
     enable_accommodation_module: false,
+  });
+
+  const [invForm, setInvForm] = useState({
+    enable_loyalty_program: false,
+    loyalty_points_per_unit: 100,
+    loyalty_point_value: 1,
+    min_points_to_redeem: 10,
   });
 
   useEffect(() => {
@@ -106,6 +125,17 @@ function SettingsPage() {
     }
   }, [company]);
 
+  useEffect(() => {
+    if (invSettings) {
+      setInvForm({
+        enable_loyalty_program: invSettings.enable_loyalty_program || false,
+        loyalty_points_per_unit: invSettings.loyalty_points_per_unit || 100,
+        loyalty_point_value: invSettings.loyalty_point_value || 1,
+        min_points_to_redeem: invSettings.min_points_to_redeem || 10,
+      });
+    }
+  }, [invSettings]);
+
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -113,6 +143,17 @@ function SettingsPage() {
       showSuccess();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.error || "Failed to update profile");
+      setTimeout(() => setErrorMsg(null), 5000);
+    }
+  };
+
+  const handleInvSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateInvSettings.mutateAsync(invForm);
+      showSuccess();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || "Failed to update inventory settings");
       setTimeout(() => setErrorMsg(null), 5000);
     }
   };
@@ -202,6 +243,17 @@ function SettingsPage() {
           >
             <Settings2 className="size-4" />
             POS Configuration
+          </button>
+          <button
+            onClick={() => setActiveTab("crm")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              activeTab === "crm"
+                ? "bg-brass/10 text-brass border border-brass/20 shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Users className="size-4" />
+            CRM & Loyalty
           </button>
           <button
             onClick={() => setActiveTab("security")}
@@ -619,6 +671,124 @@ function SettingsPage() {
                         <Save className="size-4" />
                       )}
                       Save POS Config
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {activeTab === "crm" && (
+                <form onSubmit={handleInvSettingsSubmit}>
+                  <div className="p-8 border-b border-border bg-muted/20">
+                    <h2 className="text-xl font-display text-foreground">CRM & Loyalty Program</h2>
+                    <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">
+                      Manage customer engagement and rewards
+                    </p>
+                  </div>
+                  <div className="p-8 space-y-8">
+                    <div className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/30 transition-all">
+                      <div className="flex gap-4">
+                        <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                          <Coins className="size-6 text-amber-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground">
+                            Loyalty Points Program
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Reward customers with points for every purchase that can be redeemed for discounts.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setInvForm({
+                            ...invForm,
+                            enable_loyalty_program: !invForm.enable_loyalty_program,
+                          })
+                        }
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          invForm.enable_loyalty_program ? "bg-brass" : "bg-muted-foreground/30"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            invForm.enable_loyalty_program ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {invForm.enable_loyalty_program && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2">
+                        <div className="space-y-4">
+                          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                            Earning Rate
+                          </label>
+                          <div className="relative">
+                            <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                            <input
+                              type="number"
+                              value={invForm.loyalty_points_per_unit}
+                              onChange={(e) => setInvForm({ ...invForm, loyalty_points_per_unit: Number(e.target.value) })}
+                              className="w-full h-11 pl-10 pr-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all"
+                              placeholder="100"
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground italic">
+                            Amount spent to earn 1 point (e.g. 100 KES = 1 Point)
+                          </p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                            Redemption Value
+                          </label>
+                          <div className="relative">
+                            <Zap className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                            <input
+                              type="number"
+                              value={invForm.loyalty_point_value}
+                              onChange={(e) => setInvForm({ ...invForm, loyalty_point_value: Number(e.target.value) })}
+                              className="w-full h-11 pl-10 pr-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all"
+                              placeholder="1"
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground italic">
+                            Monetary value of 1 point during checkout
+                          </p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                            Min Points to Redeem
+                          </label>
+                          <div className="relative">
+                            <History className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                            <input
+                              type="number"
+                              value={invForm.min_points_to_redeem}
+                              onChange={(e) => setInvForm({ ...invForm, min_points_to_redeem: Number(e.target.value) })}
+                              className="w-full h-11 pl-10 pr-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all"
+                              placeholder="10"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-8 bg-muted/10 border-t border-border flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={updateInvSettings.isPending}
+                      className="h-11 px-6 rounded-lg bg-navy text-brass-light font-bold uppercase tracking-widest text-xs flex items-center gap-2 hover:bg-navy/90 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                    >
+                      {updateInvSettings.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Save className="size-4" />
+                      )}
+                      Save CRM Config
                     </button>
                   </div>
                 </form>

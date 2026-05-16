@@ -13,6 +13,7 @@ import { queryClient } from "@/lib/query-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 
 function NotFoundComponent() {
   return (
@@ -37,15 +38,18 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRoute({
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location }) => {
     const publicPaths = ["/login", "/register"];
 
     // Skip auth check on server as localStorage is client-only
     if (typeof window === "undefined") return;
 
     const token = localStorage.getItem("fahari-token");
+    const isQuotePortal = location.pathname.startsWith("/quote/");
+    const isPublicPath = publicPaths.includes(location.pathname);
 
-    if (!token && !publicPaths.includes(location.pathname)) {
+    // If no token and not on a public path or quote portal, redirect to login
+    if (!token && !isPublicPath && !isQuotePortal) {
       throw redirect({
         to: "/login",
         search: {
@@ -54,8 +58,32 @@ export const Route = createRootRoute({
       });
     }
 
+    // If token exists, we should verify it on initial load or transition to private routes
+    if (token && !isPublicPath && !isQuotePortal) {
+      try {
+        // We can use the profile endpoint as a lightweight session check
+        // Using axios directly to avoid any query client sync issues during beforeLoad
+        const { api } = await import("@/lib/api");
+        await api.get("/api/v1/profile/");
+      } catch (error: any) {
+        // If 401, the interceptor in api.ts will handle cleanup, 
+        // but we should explicitly redirect here too if the interceptor didn't already
+        if (error.response?.status === 401) {
+          localStorage.removeItem("fahari-token");
+          localStorage.removeItem("fahari-refresh");
+          localStorage.removeItem("fahari-user");
+          throw redirect({
+            to: "/login",
+            search: {
+              redirect: location.href,
+            },
+          });
+        }
+      }
+    }
+
     // If logged in and on login/register, go to dashboard
-    if (token && publicPaths.includes(location.pathname)) {
+    if (token && isPublicPath) {
       throw redirect({ to: "/" });
     }
   },
@@ -111,14 +139,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+
 function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AppLayout>
-          <Outlet />
-        </AppLayout>
-        <Toaster />
+        <ConfirmProvider>
+          <AppLayout>
+            <Outlet />
+          </AppLayout>
+        </ConfirmProvider>
+        <Toaster richColors />
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -17,8 +17,9 @@ import {
   Building2,
   Tag
 } from "lucide-react";
-import { usePurchases } from "@/lib/api-hooks";
+import { usePurchases, useCompany } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { 
   Card, 
   CardContent, 
@@ -32,7 +33,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PurchaseReceiptDialog } from "@/components/inventory/PurchaseReceiptDialog";
+import { SimpleReceiveDialog } from "@/components/inventory/SimpleReceiveDialog";
+import { GRNCreateDialog } from "@/components/procurement/GRNCreateDialog";
 
 export const Route = createFileRoute("/procurement/purchases")({
   component: PurchasesPage,
@@ -41,8 +43,11 @@ export const Route = createFileRoute("/procurement/purchases")({
 function PurchasesPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isGRNOpen, setIsGRNOpen] = useState(false);
   const { data: purchasesData, isLoading } = usePurchases();
+  const { data: company } = useCompany();
 
+  const enableComplex = company?.enable_complex_procurement ?? true;
   const purchases = purchasesData?.results || [];
 
   const getStatusColor = (status: string) => {
@@ -55,8 +60,17 @@ function PurchasesPage() {
     }
   };
 
-  const handleOpenReceipt = (purchase: any) => {
+  const handleOpenReceive = (purchase: any) => {
     setSelectedPurchase(purchase);
+    if (enableComplex) {
+      setIsGRNOpen(true);
+    } else {
+      setIsReceiptOpen(true);
+    }
+  };
+
+  const handleQuickStockIn = () => {
+    setSelectedPurchase(null);
     setIsReceiptOpen(true);
   };
 
@@ -77,10 +91,22 @@ function PurchasesPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="border-white/10 bg-white/5 text-[10px] font-bold uppercase tracking-widest h-11 px-6 hover:bg-white/10 text-white">
-            <FileText className="size-4 mr-2" />
-            Manage RFQs
-          </Button>
+          {!enableComplex && (
+            <Button 
+              variant="outline" 
+              className="border-emerald-500/20 bg-emerald-500/5 text-emerald-500 text-[10px] font-bold uppercase tracking-widest h-11 px-6 hover:bg-emerald-500/10"
+              onClick={handleQuickStockIn}
+            >
+              <Truck className="size-4 mr-2" />
+              Quick Stock In
+            </Button>
+          )}
+          {enableComplex && (
+            <Button variant="outline" className="border-white/10 bg-white/5 text-[10px] font-bold uppercase tracking-widest h-11 px-6 hover:bg-white/10 text-white">
+              <FileText className="size-4 mr-2" />
+              Manage RFQs
+            </Button>
+          )}
           <Button className="bg-brass text-navy font-bold uppercase tracking-widest text-[10px] h-11 px-6 hover:bg-brass-light transition-all shadow-lg shadow-brass/20">
             <Plus className="size-4 mr-2" />
             New Purchase Order
@@ -185,10 +211,10 @@ function PurchasesPage() {
                          <Button 
                            size="sm" 
                            className="bg-emerald-500 text-navy text-[10px] font-bold uppercase h-8 px-4 hover:bg-emerald-400"
-                           onClick={() => handleOpenReceipt(purchase)}
+                           onClick={() => handleOpenReceive(purchase)}
                          >
                             <Truck className="size-3 mr-2" />
-                            Receive
+                            {enableComplex ? "Process Delivery" : "Receive"}
                          </Button>
                        ) : (
                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -202,13 +228,17 @@ function PurchasesPage() {
          </Table>
       </div>
 
-      {selectedPurchase && (
-        <PurchaseReceiptDialog 
-          open={isReceiptOpen} 
-          onOpenChange={setIsReceiptOpen} 
-          purchase={selectedPurchase}
-        />
-      )}
+      <SimpleReceiveDialog 
+        open={isReceiptOpen} 
+        onOpenChange={setIsReceiptOpen} 
+        purchase={selectedPurchase}
+      />
+
+      <GRNCreateDialog 
+        open={isGRNOpen} 
+        onOpenChange={setIsGRNOpen}
+        prefillPurchase={selectedPurchase}
+      />
     </div>
   );
 }

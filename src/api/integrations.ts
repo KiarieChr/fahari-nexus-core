@@ -34,24 +34,29 @@ export interface EtimsConfig {
 }
 
 export const integrationsApi = {
-  // M-Pesa
-  getMpesaConfig: () => api.get<MpesaConfig[]>("/api/v1/integrations/mpesa/"),
+  // M-Pesa Transactions
+  getMpesaTransactions: () => api.get<any[]>("/api/v2/integrations/mpesa-transactions/"),
+  initiateStkPush: (data: { phone: string; amount: number; sale_id?: number; session_id?: number }) =>
+    api.post("/api/v2/mpesa/stk-push/", data),
+
+  // M-Pesa Config
+  getMpesaConfig: () => api.get<MpesaConfig[]>("/api/v2/integrations/mpesa-config/"),
   saveMpesaConfig: (data: MpesaConfig) =>
     data.id
-      ? api.put(`/api/v1/integrations/mpesa/${data.id}/`, data)
-      : api.post("/api/v1/integrations/mpesa/", data),
+      ? api.put(`/api/v2/integrations/mpesa-config/${data.id}/`, data)
+      : api.post("/api/v2/integrations/mpesa-config/", data),
 
   // Bank
-  getBankConfigs: () => api.get<BankConfig[]>("/api/v1/integrations/bank/"),
+  getBankConfigs: () => api.get<BankConfig[]>("/api/v2/integrations/bank-config/"),
   saveBankConfig: (data: BankConfig) =>
     data.id
-      ? api.put(`/api/v1/integrations/bank/${data.id}/`, data)
-      : api.post("/api/v1/integrations/bank/", data),
+      ? api.put(`/api/v2/integrations/bank-config/${data.id}/`, data)
+      : api.post("/api/v2/integrations/bank-config/", data),
 
   // eTIMS
-  getEtimsConfig: () => api.get<EtimsConfig[]>("/api/v1/integrations/etims/"),
+  getEtimsConfig: () => api.get<EtimsConfig[]>("/api/v2/integrations/etims-config/"),
   saveEtimsConfig: (data: EtimsConfig) =>
     data.id
-      ? api.put(`/api/v1/integrations/etims/${data.id}/`, data)
-      : api.post("/api/v1/integrations/etims/", data),
+      ? api.put(`/api/v2/integrations/etims-config/${data.id}/`, data)
+      : api.post("/api/v2/integrations/etims-config/", data),
 };

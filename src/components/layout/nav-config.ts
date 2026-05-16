@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 export interface NavChild {
+  id?: string;
   label: string;
   to: string;
 }
@@ -47,8 +48,12 @@ export const navSections: NavSection[] = [
     label: "Purchases",
     icon: PackagePlus,
     children: [
-      { label: "Stock In", to: "/purchases/stock-in" },
+      { label: "Overview", to: "/purchases/stock-in" },
       { label: "Suppliers", to: "/purchases/suppliers" },
+      { label: "Purchase Orders", to: "/procurement/purchases" },
+      { id: "rfq", label: "RFQ / Sourcing", to: "/procurement/rfq" },
+      { id: "grn", label: "Goods Received (GRN)", to: "/procurement/grns" },
+      { id: "inspection", label: "Quality Inspection", to: "/procurement/inspections" },
     ],
   },
   {

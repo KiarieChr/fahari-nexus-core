@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { EtimsConfig } from "@/api/integrations";
 
 // Types
 export interface DashboardStats {
@@ -423,13 +424,37 @@ export const useUpdateProfile = () => {
 };
 
 export const useCompany = () => {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["company"],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/company/");
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+export const useInventorySettings = () => {
+  return useQuery<any>({
+    queryKey: ["inventory-settings"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v1/settings/inventory/");
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+export const useUpdateInventorySettings = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/settings/inventory/", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-settings"] });
+    },
   });
 };
 
@@ -666,5 +691,370 @@ export const useReceivePurchase = () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["movements"] });
     },
+  });
+};
+
+export const useQuickStockIn = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { supplier_id: number; items: any[] }) => {
+      const response = await api.post("/api/v1/purchases/quick-stock-in/", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["movements"] });
+    },
+  });
+};
+
+// --- Procurement & Supply Chain Hooks ---
+
+// Suppliers
+export const useCreateSupplier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/suppliers/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
+  });
+};
+
+export const useUpdateSupplier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/suppliers/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
+  });
+};
+
+export const useDeleteSupplier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/suppliers/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
+  });
+};
+
+// Purchases
+export const useCreatePurchase = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/purchases/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+  });
+};
+
+export const useUpdatePurchase = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/purchases/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+  });
+};
+
+export const useDeletePurchase = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/purchases/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+  });
+};
+
+// RFQs
+export const useCreateRFQ = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/rfqs/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rfqs"] }),
+  });
+};
+
+export const useUpdateRFQ = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/rfqs/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rfqs"] }),
+  });
+};
+
+export const useDeleteRFQ = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/rfqs/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rfqs"] }),
+  });
+};
+
+// Supplier Quotations
+export const useCreateQuotation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/quotations/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
+  });
+};
+
+export const useUpdateQuotation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/quotations/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
+  });
+};
+
+export const useDeleteQuotation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/quotations/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
+  });
+};
+
+// GRNs (Goods Received Notes)
+export const useGRNs = (params?: any) => {
+  return useQuery({
+    queryKey: ["grns", params],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/grns/", { params });
+      return response.data;
+    },
+  });
+};
+
+export const useCreateGRN = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/grns/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["grns"] }),
+  });
+};
+
+export const useUpdateGRN = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/grns/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["grns"] }),
+  });
+};
+
+export const useDeleteGRN = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/grns/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["grns"] }),
+  });
+};
+
+// Inspection Forms
+export const useInspections = (params?: any) => {
+  return useQuery({
+    queryKey: ["inspections", params],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/inspections/", { params });
+      return response.data;
+    },
+  });
+};
+
+export const useCreateInspection = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/inspections/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inspections"] }),
+  });
+};
+
+export const useUpdateInspection = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/inspections/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inspections"] }),
+  });
+};
+
+export const useDeleteInspection = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/inspections/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inspections"] }),
+  });
+};
+
+// Public Supplier Portal
+export const usePublicQuote = (token: string) => {
+  return useQuery({
+    queryKey: ["public-quote", token],
+    queryFn: async () => {
+      const response = await api.get(`/api/v1/quote/public/${token}/`);
+      return response.data;
+    },
+    enabled: !!token,
+    retry: false, // Don't retry on 404
+  });
+};
+
+export const useSubmitPublicQuote = () => {
+  return useMutation({
+    mutationFn: async ({ token, items, notes }: { token: string; items: any[]; notes?: string }) => {
+      const response = await api.post(`/api/v1/quote/public/${token}/`, { items, notes });
+      return response.data;
+    },
+  });
+};
+// --- CRM Hooks ---
+
+export const useCustomers = (params?: any) => {
+  return useQuery<{ results: any[] }>({
+    queryKey: ["customers", params],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v1/customers/", { params });
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+export const useCreateCustomer = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/customers/", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+  });
+};
+
+export const useDebtPayments = (customerId?: number) => {
+  return useQuery<{ results: any[] }>({
+    queryKey: ["debt-payments", customerId],
+    queryFn: async () => {
+      const params = customerId ? { customer: customerId } : {};
+      const { data } = await api.get("/api/v1/debt-payments/", { params });
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+export const useRecordDebtPayment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { customer: number; amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
+      const response = await api.post("/api/v1/debt-payments/", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["debt-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+  });
+};
+
+export const useLoyaltyTransactions = (customerId?: number) => {
+  return useQuery<{ results: any[] }>({
+    queryKey: ["loyalty-transactions", customerId],
+    queryFn: async () => {
+      const params = customerId ? { customer: customerId } : {};
+      const { data } = await api.get("/api/v1/loyalty-transactions/", { params });
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+// --- M-Pesa Hooks ---
+
+export const useMpesaStkPush = () => {
+  return useMutation({
+    mutationFn: async (data: { phone: string; amount: number; sale_id?: number; session_id?: number }) => {
+      const response = await api.post("/api/v2/mpesa/stk-push/", data);
+      return response.data;
+    },
+  });
+};
+
+export const useMpesaTransactions = (checkoutRequestId?: string) => {
+  return useQuery<{ results: any[] }>({
+    queryKey: ["mpesa-transactions", checkoutRequestId],
+    queryFn: async () => {
+      const params = checkoutRequestId ? { checkout_request_id: checkoutRequestId } : {};
+      const { data } = await api.get("/api/v2/integrations/mpesa-transactions/", { params });
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+    refetchInterval: (query) => {
+      const results = query.state.data?.results || [];
+      const isPending = results.some((t: any) => t.status === "PENDING");
+      return isPending ? 3000 : false;
+    },
+  });
+};
+
+export const useEtimsConfig = () => {
+  return useQuery<EtimsConfig[]>({
+    queryKey: ["etims-config"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v2/integrations/etims-config/");
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
 };

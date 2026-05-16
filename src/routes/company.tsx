@@ -19,10 +19,13 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 import { companyApi, Company, Branch } from "@/api/company";
 import { integrationsApi, MpesaConfig, BankConfig, EtimsConfig } from "@/api/integrations";
 import { toast } from "sonner";
+import { useUserProfile } from "@/lib/api-hooks";
 
 export const Route = createFileRoute("/company")({
   component: CompanyPage,
@@ -37,6 +40,30 @@ function CompanyPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [mpesa, setMpesa] = useState<MpesaConfig | null>(null);
   const [etims, setEtims] = useState<EtimsConfig | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [isMpesaLocked, setIsMpesaLocked] = useState(true);
+  const [isEtimsLocked, setIsEtimsLocked] = useState(true);
+
+  const { data: profile } = useUserProfile();
+
+  useEffect(() => {
+    if (profile) {
+      setUser(profile);
+      // Sync with localStorage for other components that might use it
+      localStorage.setItem("fahari-user", JSON.stringify(profile));
+    } else {
+      const savedUser = localStorage.getItem("fahari-user");
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch (e) {
+          console.error("Failed to parse saved user", e);
+        }
+      }
+    }
+  }, [profile]);
+
+  const canUnlock = user?.is_superuser || user?.is_owner || user?.role === 'admin' || user?.role === 'Administrator';
 
   useEffect(() => {
     fetchData();
@@ -71,17 +98,44 @@ function CompanyPage() {
         : (branchRes.data as any).results || [];
       setBranches(branchData);
 
+      console.log("[CompanyPage] M-Pesa Response:", mpesaRes.data);
       // Handle paginated M-Pesa config
       const mpesaData = Array.isArray(mpesaRes.data)
         ? mpesaRes.data
         : (mpesaRes.data as any).results || [];
-      if (mpesaData.length > 0) setMpesa(mpesaData[0]);
+      console.log("[CompanyPage] M-Pesa Data processed:", mpesaData);
+      if (mpesaData.length > 0) {
+        setMpesa(mpesaData[0]);
+      } else {
+        setMpesa({
+          shortcode: "",
+          consumer_key: "",
+          consumer_secret: "",
+          passkey: "",
+          is_active: true,
+          is_sandbox: true,
+        });
+      }
 
+      console.log("[CompanyPage] eTIMS Response:", etimsRes.data);
       // Handle paginated eTIMS config
       const etimsData = Array.isArray(etimsRes.data)
         ? etimsRes.data
         : (etimsRes.data as any).results || [];
-      if (etimsData.length > 0) setEtims(etimsData[0]);
+      console.log("[CompanyPage] eTIMS Data processed:", etimsData);
+      if (etimsData.length > 0) {
+        setEtims(etimsData[0]);
+      } else {
+        setEtims({
+          kra_pin: "",
+          serial_number: "",
+          api_key: "",
+          endpoint_url: "https://etims.kra.go.ke/api/",
+          is_active: true,
+          is_sandbox: true,
+        });
+      }
+
     } catch (error) {
       console.error("[CompanyPage] Failed to fetch company data:", error);
       toast.error("Failed to load company information. Please check your connection.");
@@ -101,6 +155,28 @@ function CompanyPage() {
       fetchData(); // Refresh data
     } catch (error) {
       toast.error("Failed to update company");
+    }
+  };
+
+  const handleUpdateMpesa = async () => {
+    if (!mpesa) return;
+    try {
+      await integrationsApi.saveMpesaConfig(mpesa);
+      toast.success("M-Pesa configuration updated");
+      fetchData();
+    } catch (error) {
+      toast.error("Failed to update M-Pesa config");
+    }
+  };
+
+  const handleUpdateEtims = async () => {
+    if (!etims) return;
+    try {
+      await integrationsApi.saveEtimsConfig(etims);
+      toast.success("eTIMS configuration updated");
+      fetchData();
+    } catch (error) {
+      toast.error("Failed to update eTIMS config");
     }
   };
 
@@ -508,12 +584,29 @@ function CompanyPage() {
                       <Smartphone className="w-8 h-8 text-green-700" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Lipa na M-Pesa</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-xl">Lipa na M-Pesa</CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => {
+                            if (canUnlock) {
+                              setIsMpesaLocked(!isMpesaLocked);
+                            } else {
+                              toast.error("You don't have permission to unlock these settings");
+                            }
+                          }}
+                        >
+                          {isMpesaLocked ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4 text-green-600" />}
+                        </Button>
+                      </div>
                       <CardDescription>Daraja API C2B/STK Push Integration.</CardDescription>
                     </div>
                   </div>
                   <Switch
                     checked={mpesa?.is_active}
+                    onCheckedChange={(val) => setMpesa(prev => prev ? { ...prev, is_active: val } : null)}
                     className="data-[state=checked]:bg-green-600"
                   />
                 </div>
@@ -522,23 +615,35 @@ function CompanyPage() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Shortcode</Label>
-                    <Input
-                      placeholder="Paybill or Till No"
-                      value={mpesa?.shortcode || ""}
-                      className="bg-muted/30 border-transparent focus:bg-background transition-all"
-                    />
+                      <Input
+                        placeholder="Paybill or Till No"
+                        value={mpesa?.shortcode || ""}
+                        onChange={(e) => setMpesa(prev => ({ ...(prev || {} as MpesaConfig), shortcode: e.target.value }))}
+                        disabled={isMpesaLocked}
+                        className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                      />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Environment</Label>
                     <div className="flex items-center gap-2 h-10 px-3 bg-muted/50 rounded-md border border-muted-foreground/10">
-                      <Badge
-                        variant={mpesa?.is_sandbox ? "outline" : "default"}
-                        className={
-                          mpesa?.is_sandbox ? "border-yellow-200 text-yellow-700" : "bg-green-600"
-                        }
+                      <button 
+                        onClick={() => {
+                          if (!isMpesaLocked) {
+                            setMpesa(prev => prev ? { ...prev, is_sandbox: !prev.is_sandbox } : null);
+                          }
+                        }}
+                        disabled={isMpesaLocked}
+                        className="w-full text-left disabled:cursor-not-allowed"
                       >
-                        {mpesa?.is_sandbox ? "Sandbox" : "Production"}
-                      </Badge>
+                        <Badge
+                          variant={mpesa?.is_sandbox ? "outline" : "default"}
+                          className={
+                            mpesa?.is_sandbox ? "border-yellow-200 text-yellow-700 hover:bg-yellow-100" : "bg-green-600 hover:bg-green-700"
+                          }
+                        >
+                          {mpesa?.is_sandbox ? "Sandbox" : "Production"}
+                        </Badge>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -547,7 +652,9 @@ function CompanyPage() {
                   <Input
                     type="password"
                     value={mpesa?.consumer_key || ""}
-                    className="bg-muted/30 border-transparent focus:bg-background transition-all"
+                    onChange={(e) => setMpesa(prev => ({ ...(prev || {} as MpesaConfig), consumer_key: e.target.value }))}
+                    disabled={isMpesaLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-2">
@@ -555,10 +662,36 @@ function CompanyPage() {
                   <Input
                     type="password"
                     value={mpesa?.consumer_secret || ""}
-                    className="bg-muted/30 border-transparent focus:bg-background transition-all"
+                    onChange={(e) => setMpesa(prev => ({ ...(prev || {} as MpesaConfig), consumer_secret: e.target.value }))}
+                    disabled={isMpesaLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
-                <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white shadow-md transition-all mt-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Passkey (STK Push)</Label>
+                  <Input
+                    type="password"
+                    value={mpesa?.passkey || ""}
+                    onChange={(e) => setMpesa(prev => ({ ...(prev || {} as MpesaConfig), passkey: e.target.value }))}
+                    disabled={isMpesaLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Callback URL</Label>
+                  <Input
+                    placeholder="https://your-domain.com/api/v2/mpesa/callback/"
+                    value={mpesa?.callback_url || ""}
+                    onChange={(e) => setMpesa(prev => ({ ...(prev || {} as MpesaConfig), callback_url: e.target.value }))}
+                    disabled={isMpesaLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <Button 
+                  onClick={handleUpdateMpesa}
+                  disabled={isMpesaLocked}
+                  className="w-full h-11 bg-green-600 hover:bg-green-700 text-white shadow-md transition-all mt-4 disabled:opacity-50"
+                >
                   Update M-Pesa Config
                 </Button>
               </CardContent>
@@ -573,7 +706,23 @@ function CompanyPage() {
                       <ShieldCheck className="w-8 h-8 text-blue-700" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">KRA eTIMS</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-xl">KRA eTIMS</CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => {
+                            if (canUnlock) {
+                              setIsEtimsLocked(!isEtimsLocked);
+                            } else {
+                              toast.error("You don't have permission to unlock these settings");
+                            }
+                          }}
+                        >
+                          {isEtimsLocked ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4 text-blue-600" />}
+                        </Button>
+                      </div>
                       <CardDescription>Tax compliance and electronic invoicing.</CardDescription>
                     </div>
                   </div>
@@ -586,14 +735,18 @@ function CompanyPage() {
                   <Input
                     placeholder="P000..."
                     value={etims?.kra_pin || ""}
-                    className="bg-muted/30 border-transparent focus:bg-background transition-all"
+                    onChange={(e) => setEtims(prev => ({ ...(prev || {} as EtimsConfig), kra_pin: e.target.value }))}
+                    disabled={isEtimsLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Device Serial Number</Label>
                   <Input
                     value={etims?.serial_number || ""}
-                    className="bg-muted/30 border-transparent focus:bg-background transition-all"
+                    onChange={(e) => setEtims(prev => ({ ...(prev || {} as EtimsConfig), serial_number: e.target.value }))}
+                    disabled={isEtimsLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-2">
@@ -601,10 +754,16 @@ function CompanyPage() {
                   <Input
                     type="password"
                     value={etims?.api_key || ""}
-                    className="bg-muted/30 border-transparent focus:bg-background transition-all"
+                    onChange={(e) => setEtims(prev => ({ ...(prev || {} as EtimsConfig), api_key: e.target.value }))}
+                    disabled={isEtimsLocked}
+                    className="bg-muted/30 border-transparent focus:bg-background transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                   />
                 </div>
-                <Button className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all mt-4">
+                <Button 
+                  onClick={handleUpdateEtims}
+                  disabled={isEtimsLocked}
+                  className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all mt-4 disabled:opacity-50"
+                >
                   Verify & Save eTIMS
                 </Button>
               </CardContent>

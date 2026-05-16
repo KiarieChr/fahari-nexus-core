@@ -16,7 +16,8 @@ import {
   Tag,
   Users,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Trophy
 } from "lucide-react";
 import { useRFQs, useQuotations } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RFQCreationDialog } from "@/components/inventory/RFQCreationDialog";
+import { QuotationAwardDialog } from "@/components/procurement/QuotationAwardDialog";
 
 export const Route = createFileRoute("/procurement/rfq")({
   component: RFQManagementPage,
@@ -41,11 +43,19 @@ export const Route = createFileRoute("/procurement/rfq")({
 
 function RFQManagementPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAwardOpen, setIsAwardOpen] = useState(false);
+  const [selectedRFQ, setSelectedRFQ] = useState<any>(null);
+  const [selectedQuote, setSelectedQuote] = useState<any>(null);
   const { data: rfqData, isLoading } = useRFQs();
   const { data: quoteData } = useQuotations();
 
   const rfqs = rfqData?.results || [];
   const quotations = quoteData?.results || [];
+
+  const handleAcceptBid = (quote: any) => {
+    setSelectedQuote(quote);
+    setIsAwardOpen(true);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -82,6 +92,11 @@ function RFQManagementPage() {
       </div>
 
       <RFQCreationDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} />
+      <QuotationAwardDialog 
+        open={isAwardOpen} 
+        onOpenChange={setIsAwardOpen} 
+        quotation={selectedQuote} 
+      />
 
       <div className="grid gap-6 md:grid-cols-4">
          {[
@@ -211,7 +226,11 @@ function RFQManagementPage() {
                        <Button size="sm" variant="ghost" className="flex-1 text-[9px] font-bold uppercase tracking-widest border border-white/10">
                           Decline
                        </Button>
-                       <Button size="sm" className="flex-1 bg-brass text-navy text-[9px] font-bold uppercase tracking-widest hover:bg-brass-light">
+                       <Button 
+                        size="sm" 
+                        className="flex-1 bg-brass text-navy text-[9px] font-bold uppercase tracking-widest hover:bg-brass-light"
+                        onClick={() => handleAcceptBid(quote)}
+                       >
                           Accept Bid
                        </Button>
                     </div>

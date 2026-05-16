@@ -25,10 +25,13 @@ import { Route as SalesIndexRouteImport } from './routes/sales.index'
 import { Route as SalesSummariesRouteImport } from './routes/sales.summaries'
 import { Route as SalesSettingsRouteImport } from './routes/sales.settings'
 import { Route as SalesDashboardRouteImport } from './routes/sales.dashboard'
+import { Route as QuoteTokenRouteImport } from './routes/quote.$token'
 import { Route as PurchasesSuppliersRouteImport } from './routes/purchases/suppliers'
 import { Route as PurchasesStockInRouteImport } from './routes/purchases/stock-in'
 import { Route as ProcurementRfqRouteImport } from './routes/procurement/rfq'
 import { Route as ProcurementPurchasesRouteImport } from './routes/procurement/purchases'
+import { Route as ProcurementInspectionsRouteImport } from './routes/procurement/inspections'
+import { Route as ProcurementGrnsRouteImport } from './routes/procurement/grns'
 import { Route as InventoryTransfersRouteImport } from './routes/inventory/transfers'
 import { Route as InventoryProductsRouteImport } from './routes/inventory/products'
 import { Route as InventoryCategoriesRouteImport } from './routes/inventory/categories'
@@ -122,6 +125,11 @@ const SalesDashboardRoute = SalesDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => SalesRoute,
 } as any)
+const QuoteTokenRoute = QuoteTokenRouteImport.update({
+  id: '/quote/$token',
+  path: '/quote/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PurchasesSuppliersRoute = PurchasesSuppliersRouteImport.update({
   id: '/purchases/suppliers',
   path: '/purchases/suppliers',
@@ -140,6 +148,16 @@ const ProcurementRfqRoute = ProcurementRfqRouteImport.update({
 const ProcurementPurchasesRoute = ProcurementPurchasesRouteImport.update({
   id: '/procurement/purchases',
   path: '/procurement/purchases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementInspectionsRoute = ProcurementInspectionsRouteImport.update({
+  id: '/procurement/inspections',
+  path: '/procurement/inspections',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementGrnsRoute = ProcurementGrnsRouteImport.update({
+  id: '/procurement/grns',
+  path: '/procurement/grns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryTransfersRoute = InventoryTransfersRouteImport.update({
@@ -228,10 +246,13 @@ export interface FileRoutesByFullPath {
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
+  '/procurement/grns': typeof ProcurementGrnsRoute
+  '/procurement/inspections': typeof ProcurementInspectionsRoute
   '/procurement/purchases': typeof ProcurementPurchasesRoute
   '/procurement/rfq': typeof ProcurementRfqRoute
   '/purchases/stock-in': typeof PurchasesStockInRoute
   '/purchases/suppliers': typeof PurchasesSuppliersRoute
+  '/quote/$token': typeof QuoteTokenRoute
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
@@ -261,10 +282,13 @@ export interface FileRoutesByTo {
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
+  '/procurement/grns': typeof ProcurementGrnsRoute
+  '/procurement/inspections': typeof ProcurementInspectionsRoute
   '/procurement/purchases': typeof ProcurementPurchasesRoute
   '/procurement/rfq': typeof ProcurementRfqRoute
   '/purchases/stock-in': typeof PurchasesStockInRoute
   '/purchases/suppliers': typeof PurchasesSuppliersRoute
+  '/quote/$token': typeof QuoteTokenRoute
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
@@ -296,10 +320,13 @@ export interface FileRoutesById {
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
+  '/procurement/grns': typeof ProcurementGrnsRoute
+  '/procurement/inspections': typeof ProcurementInspectionsRoute
   '/procurement/purchases': typeof ProcurementPurchasesRoute
   '/procurement/rfq': typeof ProcurementRfqRoute
   '/purchases/stock-in': typeof PurchasesStockInRoute
   '/purchases/suppliers': typeof PurchasesSuppliersRoute
+  '/quote/$token': typeof QuoteTokenRoute
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
@@ -332,10 +359,13 @@ export interface FileRouteTypes {
     | '/inventory/categories'
     | '/inventory/products'
     | '/inventory/transfers'
+    | '/procurement/grns'
+    | '/procurement/inspections'
     | '/procurement/purchases'
     | '/procurement/rfq'
     | '/purchases/stock-in'
     | '/purchases/suppliers'
+    | '/quote/$token'
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
@@ -365,10 +395,13 @@ export interface FileRouteTypes {
     | '/inventory/categories'
     | '/inventory/products'
     | '/inventory/transfers'
+    | '/procurement/grns'
+    | '/procurement/inspections'
     | '/procurement/purchases'
     | '/procurement/rfq'
     | '/purchases/stock-in'
     | '/purchases/suppliers'
+    | '/quote/$token'
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
@@ -399,10 +432,13 @@ export interface FileRouteTypes {
     | '/inventory/categories'
     | '/inventory/products'
     | '/inventory/transfers'
+    | '/procurement/grns'
+    | '/procurement/inspections'
     | '/procurement/purchases'
     | '/procurement/rfq'
     | '/purchases/stock-in'
     | '/purchases/suppliers'
+    | '/quote/$token'
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
@@ -434,10 +470,13 @@ export interface RootRouteChildren {
   InventoryCategoriesRoute: typeof InventoryCategoriesRoute
   InventoryProductsRoute: typeof InventoryProductsRoute
   InventoryTransfersRoute: typeof InventoryTransfersRoute
+  ProcurementGrnsRoute: typeof ProcurementGrnsRoute
+  ProcurementInspectionsRoute: typeof ProcurementInspectionsRoute
   ProcurementPurchasesRoute: typeof ProcurementPurchasesRoute
   ProcurementRfqRoute: typeof ProcurementRfqRoute
   PurchasesStockInRoute: typeof PurchasesStockInRoute
   PurchasesSuppliersRoute: typeof PurchasesSuppliersRoute
+  QuoteTokenRoute: typeof QuoteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -554,6 +593,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SalesDashboardRouteImport
       parentRoute: typeof SalesRoute
     }
+    '/quote/$token': {
+      id: '/quote/$token'
+      path: '/quote/$token'
+      fullPath: '/quote/$token'
+      preLoaderRoute: typeof QuoteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/purchases/suppliers': {
       id: '/purchases/suppliers'
       path: '/purchases/suppliers'
@@ -580,6 +626,20 @@ declare module '@tanstack/react-router' {
       path: '/procurement/purchases'
       fullPath: '/procurement/purchases'
       preLoaderRoute: typeof ProcurementPurchasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/inspections': {
+      id: '/procurement/inspections'
+      path: '/procurement/inspections'
+      fullPath: '/procurement/inspections'
+      preLoaderRoute: typeof ProcurementInspectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/grns': {
+      id: '/procurement/grns'
+      path: '/procurement/grns'
+      fullPath: '/procurement/grns'
+      preLoaderRoute: typeof ProcurementGrnsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory/transfers': {
@@ -710,10 +770,13 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryCategoriesRoute: InventoryCategoriesRoute,
   InventoryProductsRoute: InventoryProductsRoute,
   InventoryTransfersRoute: InventoryTransfersRoute,
+  ProcurementGrnsRoute: ProcurementGrnsRoute,
+  ProcurementInspectionsRoute: ProcurementInspectionsRoute,
   ProcurementPurchasesRoute: ProcurementPurchasesRoute,
   ProcurementRfqRoute: ProcurementRfqRoute,
   PurchasesStockInRoute: PurchasesStockInRoute,
   PurchasesSuppliersRoute: PurchasesSuppliersRoute,
+  QuoteTokenRoute: QuoteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
