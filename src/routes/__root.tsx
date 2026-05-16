@@ -2,13 +2,10 @@ import {
   Outlet,
   Link,
   createRootRoute,
-  HeadContent,
-  Scripts,
   redirect,
 } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 
-import appCss from "../styles.css?url";
 import { queryClient } from "@/lib/query-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -41,9 +38,6 @@ export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
     const publicPaths = ["/login", "/register"];
 
-    // Skip auth check on server as localStorage is client-only
-    if (typeof window === "undefined") return;
-
     const token = localStorage.getItem("fahari-token");
     const isQuotePortal = location.pathname.startsWith("/quote/");
     const isPublicPath = publicPaths.includes(location.pathname);
@@ -62,12 +56,9 @@ export const Route = createRootRoute({
     if (token && !isPublicPath && !isQuotePortal) {
       try {
         // We can use the profile endpoint as a lightweight session check
-        // Using axios directly to avoid any query client sync issues during beforeLoad
         const { api } = await import("@/lib/api");
         await api.get("/api/v1/profile/");
       } catch (error: any) {
-        // If 401, the interceptor in api.ts will handle cleanup, 
-        // but we should explicitly redirect here too if the interceptor didn't already
         if (error.response?.status === 401) {
           localStorage.removeItem("fahari-token");
           localStorage.removeItem("fahari-refresh");
@@ -87,58 +78,9 @@ export const Route = createRootRoute({
       throw redirect({ to: "/" });
     }
   },
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Fahari Nexus — Premium ERP & POS" },
-      {
-        name: "description",
-        content:
-          "Fahari Nexus is a premium, high-performance ERP and Point of Sale platform for modern enterprises.",
-      },
-      { name: "author", content: "Fahari Nexus" },
-      { property: "og:title", content: "Fahari Nexus — Premium ERP & POS" },
-      {
-        property: "og:description",
-        content: "A premium, API-driven ERP & POS suite built for power users.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-    ],
-    links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Lora:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600;700&display=swap",
-      },
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-    ],
-  }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
 });
-
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
-
 
 function RootComponent() {
   return (
