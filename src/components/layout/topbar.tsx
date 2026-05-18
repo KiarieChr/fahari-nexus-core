@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
-import { Bell, Search, PanelLeft, Sun, Moon, LayoutPanelLeft, Zap, ShieldAlert, AlertTriangle, TrendingDown } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Bell, Search, PanelLeft, Sun, Moon, LayoutPanelLeft, Zap, ShieldAlert, AlertTriangle, TrendingDown, MapPin, Clock } from "lucide-react";
 import { useThemeStore, type ThemeMode } from "@/store/theme";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useBatchAnalytics } from "@/lib/api-hooks";
+import { useBatchAnalytics, useBranches, useCompany } from "@/lib/api-hooks";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -31,6 +32,16 @@ export function Topbar() {
   const { data: analytics } = useBatchAnalytics();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [hasPlayedSound, setHasPlayedSound] = useState(false);
+  const { data: branchesData } = useBranches();
+  const { data: company } = useCompany();
+  const branches = branchesData?.results || (Array.isArray(branchesData) ? branchesData : []);
+  const [selectedBranch, setSelectedBranch] = useState("all");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Initialize Audio
   useEffect(() => {
@@ -88,6 +99,29 @@ export function Topbar() {
       </div>
 
       <div className="flex-1 md:hidden" />
+
+      {/* Clock */}
+      <div className="hidden lg:flex items-center gap-2 px-3 h-10 rounded-md border border-border bg-muted/40 text-muted-foreground font-mono text-sm">
+        <Clock className="size-4" />
+        {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+      </div>
+
+      {/* Branch Selector */}
+      <div className="hidden md:flex items-center">
+        <div className="relative">
+          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <select 
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="h-10 rounded-md bg-muted/40 border border-border pl-9 pr-8 text-sm outline-none transition-all focus:bg-background focus:border-brass/60 focus:ring-2 focus:ring-brass/20 text-foreground appearance-none min-w-[160px]"
+          >
+            <option value="all">All Branches</option>
+            {branches.map((b: any) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* Theme switcher segmented */}
       <div className="hidden sm:flex items-center rounded-md border border-border bg-muted/40 p-0.5">
@@ -166,17 +200,38 @@ export function Topbar() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="flex items-center gap-2 pl-3 border-l border-border">
-        <div className="size-9 rounded-full bg-gradient-to-br from-navy to-navy-deep grid place-items-center text-brass-light font-display text-sm ring-1 ring-brass/40">
-          JM
-        </div>
-        <div className="hidden md:block min-w-0">
-          <div className="text-sm font-medium leading-tight text-foreground truncate">james</div>
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Administrator
+      <DropdownMenu>
+        <DropdownMenuTrigger className="flex items-center gap-2 pl-3 border-l border-border outline-none group cursor-pointer">
+          <div className="size-9 rounded-full bg-gradient-to-br from-navy to-navy-deep grid place-items-center text-brass-light font-display text-sm ring-1 ring-brass/40 group-hover:ring-brass transition-all">
+            JM
           </div>
-        </div>
-      </div>
+          <div className="hidden md:block min-w-0 text-left">
+            <div className="text-sm font-medium leading-tight text-foreground truncate group-hover:text-brass transition-colors">james</div>
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              Administrator
+            </div>
+          </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56 mt-2">
+          {company?.enable_hr_module && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link to="/hr/shifts" className="w-full cursor-pointer flex items-center gap-2 text-emerald-500 focus:text-emerald-500 focus:bg-emerald-500/10">
+                  <Clock className="size-4" />
+                  <span>Clock In / Out</span>
+                </Link>
+              </DropdownMenuItem>
+              <div className="h-px bg-border my-1" />
+            </>
+          )}
+          <DropdownMenuItem onClick={() => {
+            localStorage.removeItem("fahari-token");
+            window.location.href = "/login";
+          }} className="cursor-pointer text-destructive focus:text-destructive">
+            Sign Out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
 }

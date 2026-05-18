@@ -11,6 +11,7 @@ import {
   Settings,
   Building2,
   Utensils,
+  Wine,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ export interface NavSection {
   label: string;
   icon: LucideIcon;
   to?: string;
+  search?: string;
   children?: NavChild[];
 }
 
@@ -32,6 +34,7 @@ export const navSections: NavSection[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, to: "/" },
   { id: "pos", label: "Point of Sale", icon: ShoppingCart, to: "/pos" },
   { id: "restaurant-pro", label: "Restaurant Pro", icon: Utensils, to: "/restaurant" },
+  { id: "bar-pro", label: "Bar Mode", icon: Wine, to: "/pos", search: "?section=bar" },
   {
     id: "inventory",
     label: "Inventory",
@@ -41,6 +44,8 @@ export const navSections: NavSection[] = [
       { label: "Categories", to: "/inventory/categories" },
       { label: "Batches", to: "/inventory/batches" },
       { label: "Stock Adjustments", to: "/inventory/adjustments" },
+      { label: "Stock Transfers", to: "/inventory/transfers" },
+      { label: "Inventory Settings", to: "/inventory/settings" },
     ],
   },
   {

@@ -23,14 +23,18 @@ import {
   Coins,
   History,
   TrendingUp,
+  ExternalLink,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { 
   useUserProfile, 
   useUpdateProfile, 
   useCompany, 
   useUpdateCompany,
   useInventorySettings,
-  useUpdateInventorySettings
+  useUpdateInventorySettings,
+  useHRSettings,
+  useUpdateHRSettings
 } from "@/lib/api-hooks";
 
 export const Route = createFileRoute("/settings")({
@@ -46,7 +50,7 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
-type TabType = "account" | "business" | "pos" | "crm" | "security" | "notifications";
+type TabType = "account" | "business" | "pos" | "crm" | "hr" | "security" | "notifications";
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("account");
@@ -60,6 +64,9 @@ function SettingsPage() {
   const updateCompany = useUpdateCompany();
   const { data: invSettings, isLoading: loadingInvSettings } = useInventorySettings();
   const updateInvSettings = useUpdateInventorySettings();
+
+  const { data: hrSettings, isLoading: loadingHRSettings } = useHRSettings();
+  const updateHRSettings = useUpdateHRSettings();
 
   // Local state for forms
   const [profileForm, setProfileForm] = useState({
@@ -91,6 +98,17 @@ function SettingsPage() {
     loyalty_points_per_unit: 100,
     loyalty_point_value: 1,
     min_points_to_redeem: 10,
+  });
+
+  const [hrForm, setHrForm] = useState({
+    enable_leave_management: false,
+    enable_shift_management: false,
+    enable_payroll_management: false,
+    enable_attendance_tracking: false,
+    payroll_cycle: "monthly",
+    kra_pin: "",
+    nssf_code: "",
+    nhif_code: "",
   });
 
   useEffect(() => {
@@ -136,6 +154,21 @@ function SettingsPage() {
     }
   }, [invSettings]);
 
+  useEffect(() => {
+    if (hrSettings) {
+      setHrForm({
+        enable_leave_management: hrSettings.enable_leave_management || false,
+        enable_shift_management: hrSettings.enable_shift_management || false,
+        enable_payroll_management: hrSettings.enable_payroll_management || false,
+        enable_attendance_tracking: hrSettings.enable_attendance_tracking || false,
+        payroll_cycle: hrSettings.payroll_cycle || "monthly",
+        kra_pin: hrSettings.kra_pin || "",
+        nssf_code: hrSettings.nssf_code || "",
+        nhif_code: hrSettings.nhif_code || "",
+      });
+    }
+  }, [hrSettings]);
+
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -154,6 +187,17 @@ function SettingsPage() {
       showSuccess();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.error || "Failed to update inventory settings");
+      setTimeout(() => setErrorMsg(null), 5000);
+    }
+  };
+
+  const handleHRSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateHRSettings.mutateAsync(hrForm);
+      showSuccess();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || "Failed to update HR settings");
       setTimeout(() => setErrorMsg(null), 5000);
     }
   };
@@ -193,7 +237,7 @@ function SettingsPage() {
     setTimeout(() => setIsSuccess(false), 3000);
   };
 
-  const isLoading = loadingProfile || loadingCompany;
+  const isLoading = loadingProfile || loadingCompany || loadingHRSettings;
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-[1200px] mx-auto">
@@ -254,6 +298,17 @@ function SettingsPage() {
           >
             <Users className="size-4" />
             CRM & Loyalty
+          </button>
+          <button
+            onClick={() => setActiveTab("hr")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              activeTab === "hr"
+                ? "bg-brass/10 text-brass border border-brass/20 shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Coins className="size-4" />
+            HR & Payroll Config
           </button>
           <button
             onClick={() => setActiveTab("security")}
@@ -794,15 +849,191 @@ function SettingsPage() {
                 </form>
               )}
 
+              {activeTab === "hr" && (
+                <form onSubmit={handleHRSettingsSubmit}>
+                  <div className="p-8 border-b border-border bg-muted/20">
+                    <h2 className="text-xl font-display text-foreground">HR & Payroll Configuration</h2>
+                    <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">
+                      Configure dynamic payroll cycles, statutory compliance, and sub-module activation
+                    </p>
+                  </div>
+                  <div className="p-8 space-y-6">
+                    <h3 className="font-serif text-lg text-brass border-b border-border/40 pb-2">Sub-Module Activation</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/5 hover:border-brass/35 transition-all">
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Leave Management</h4>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Track employee paid & unpaid leaves</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHrForm({ ...hrForm, enable_leave_management: !hrForm.enable_leave_management })}
+                          className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            hrForm.enable_leave_management ? "bg-brass" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                            hrForm.enable_leave_management ? "translate-x-5" : "translate-x-0"
+                          }`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/5 hover:border-brass/35 transition-all">
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Shift Schedules</h4>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Assign shifts & working hour calendars</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHrForm({ ...hrForm, enable_shift_management: !hrForm.enable_shift_management })}
+                          className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            hrForm.enable_shift_management ? "bg-brass" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                            hrForm.enable_shift_management ? "translate-x-5" : "translate-x-0"
+                          }`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/5 hover:border-brass/35 transition-all">
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Payroll Processing</h4>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Process salaries, statutory deductions & slips</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHrForm({ ...hrForm, enable_payroll_management: !hrForm.enable_payroll_management })}
+                          className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            hrForm.enable_payroll_management ? "bg-brass" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                            hrForm.enable_payroll_management ? "translate-x-5" : "translate-x-0"
+                          }`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/5 hover:border-brass/35 transition-all">
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Attendance & Clock In</h4>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Enable smart clock-in controls and timers</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHrForm({ ...hrForm, enable_attendance_tracking: !hrForm.enable_attendance_tracking })}
+                          className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            hrForm.enable_attendance_tracking ? "bg-brass" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                            hrForm.enable_attendance_tracking ? "translate-x-5" : "translate-x-0"
+                          }`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 className="font-serif text-lg text-brass border-b border-border/40 pb-2 mt-8">Statutory Registrations & Cycles</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">KRA Tax ID / PIN</label>
+                        <input
+                          value={hrForm.kra_pin}
+                          onChange={(e) => setHrForm({ ...hrForm, kra_pin: e.target.value })}
+                          placeholder="e.g. P051234567A"
+                          className="w-full h-11 px-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all uppercase font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">NSSF Code</label>
+                        <input
+                          value={hrForm.nssf_code}
+                          onChange={(e) => setHrForm({ ...hrForm, nssf_code: e.target.value })}
+                          placeholder="e.g. 1009923"
+                          className="w-full h-11 px-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">NHIF / SHIF Code</label>
+                        <input
+                          value={hrForm.nhif_code}
+                          onChange={(e) => setHrForm({ ...hrForm, nhif_code: e.target.value })}
+                          placeholder="e.g. SHIF-88329"
+                          className="w-full h-11 px-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Payroll Cycle</label>
+                        <select
+                          value={hrForm.payroll_cycle}
+                          onChange={(e) => setHrForm({ ...hrForm, payroll_cycle: e.target.value })}
+                          className="w-full h-11 px-4 rounded-lg bg-muted/40 border border-border text-sm focus:border-brass/60 outline-none transition-all font-mono"
+                        >
+                          <option value="weekly">Weekly</option>
+                          <option value="biweekly">Bi-weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8 bg-muted/10 border-t border-border flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={updateHRSettings.isPending}
+                      className="h-11 px-6 rounded-lg bg-navy text-brass-light font-bold uppercase tracking-widest text-xs flex items-center gap-2 hover:bg-navy/90 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                    >
+                      {updateHRSettings.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Save className="size-4" />
+                      )}
+                      Save HR Configurations
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {activeTab === "security" && (
                 <form onSubmit={handleProfileSubmit}>
                   <div className="p-8 border-b border-border bg-muted/20">
-                    <h2 className="text-xl font-display text-foreground">Security & Protection</h2>
+                    <h2 className="text-xl font-display text-foreground">Security & Access Control</h2>
                     <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">
-                      Protect your account with multi-factor authentication
+                      Manage authentication, users, and roles
                     </p>
                   </div>
                   <div className="p-8 space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Link to="/settings/users" className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/50 hover:bg-muted/30 transition-all group">
+                        <div className="flex gap-4 items-center">
+                          <div className="size-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                            <Users className="size-6 text-blue-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-foreground">User Management</h3>
+                            <p className="text-xs text-muted-foreground mt-1">Add, remove, and manage system users</p>
+                          </div>
+                        </div>
+                        <ExternalLink className="size-5 text-muted-foreground group-hover:text-brass transition-colors" />
+                      </Link>
+
+                      <Link to="/settings/roles" className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/50 hover:bg-muted/30 transition-all group">
+                        <div className="flex gap-4 items-center">
+                          <div className="size-12 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                            <ShieldCheck className="size-6 text-purple-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-foreground">Roles & Permissions</h3>
+                            <p className="text-xs text-muted-foreground mt-1">Configure access control rules</p>
+                          </div>
+                        </div>
+                        <ExternalLink className="size-5 text-muted-foreground group-hover:text-brass transition-colors" />
+                      </Link>
+                    </div>
+
                     <div className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/30 transition-all">
                       <div className="flex gap-4">
                         <div className="size-12 rounded-xl bg-brass/10 flex items-center justify-center border border-brass/20">

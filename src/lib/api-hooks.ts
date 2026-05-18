@@ -28,10 +28,13 @@ export interface Product {
   stock_quantity: number;
   category_name: string;
   category_type?: "general" | "restaurant" | "bar";
+  product_type?: "product" | "service" | "menu_item" | "raw_material";
   image?: string;
+  image_url?: string;
   cost_price: number;
   markup_percentage: number;
   stock_levels?: any[];
+  portions_available?: number;
 }
 
 export interface ProductBatch {
@@ -74,6 +77,8 @@ export const useProducts = (params?: any) => {
     queryKey: ["products", params],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/products/", { params });
+      // Normalize: backend may return plain array or { results: [] }
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -95,8 +100,9 @@ export const useProductBatches = (productId: number | null) => {
   return useQuery<ProductBatch[]>({
     queryKey: ["product-batches", productId],
     queryFn: async () => {
-      const { data } = await api.get(`/api/products/${productId}/batches/available/`);
-      return data;
+      const { data } = await api.get(`/api/v1/batches/?product=${productId}&is_active=true`);
+      if (Array.isArray(data)) return data;
+      return data.results || [];
     },
     enabled: !!productId && typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
@@ -203,6 +209,34 @@ export const useBatchAnalytics = () => {
     },
   });
 };
+
+export const useApproveBatch = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.post(`/api/v1/batches/${id}/approve/`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      queryClient.invalidateQueries({ queryKey: ["product-batches"] });
+    },
+  });
+};
+
+export const useRejectBatch = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.post(`/api/v1/batches/${id}/reject/`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      queryClient.invalidateQueries({ queryKey: ["product-batches"] });
+    },
+  });
+};
 export const useTransfers = () => {
   return useQuery({
     queryKey: ["transfers"],
@@ -213,13 +247,61 @@ export const useTransfers = () => {
   });
 };
 
-export const useMovements = () => {
+export const useMovements = (params?: any) => {
   return useQuery({
-    queryKey: ["movements"],
+    queryKey: ["movements", params],
     queryFn: async () => {
-      const response = await api.get("/api/v1/movements/");
+      const response = await api.get("/api/v1/movements/", { params });
+      // Normalize plain array or paginated
+      if (Array.isArray(response.data)) return { results: response.data };
       return response.data;
     },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+export const useCreateMovement = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      product: number;
+      movement_type: string;
+      quantity: number;
+      branch?: number;
+      notes?: string;
+      reference_number?: string;
+      unit_cost?: number;
+    }) => {
+      const response = await api.post("/api/v1/movements/", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["movements"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+};
+
+export const useMovementAnalytics = () => {
+  return useQuery({
+    queryKey: ["movement-analytics"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/movements/analytics/");
+      return response.data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
+export const useReports = (params: string | { type: string }) => {
+  const queryParams = typeof params === "string" ? { type: params } : params;
+  return useQuery({
+    queryKey: ["reports", queryParams],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/reports/", { params: queryParams });
+      return response.data;
+    },
+    enabled: !!queryParams.type && typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
 };
 
@@ -278,11 +360,26 @@ export const useExportExcel = () => {
   });
 };
 
+export const useCreateCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (categoryData: any) => {
+      const { data } = await api.post("/api/v1/categories/", categoryData);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+};
+
 export const useCategories = () => {
   return useQuery<{ results: any[] }>({
     queryKey: ["categories"],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/categories/");
+      // Normalize: backend may return plain array or { results: [] }
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -294,6 +391,7 @@ export const useBrands = () => {
     queryKey: ["brands"],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/brands/");
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -449,7 +547,7 @@ export const useUpdateInventorySettings = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: any) => {
-      const response = await api.post("/api/v1/settings/inventory/", data);
+      const response = await api.patch("/api/v1/settings/inventory/", data);
       return response.data;
     },
     onSuccess: () => {
@@ -482,14 +580,29 @@ export const useSales = (params?: any) => {
   });
 };
 
+export const useIncrementSalePrintCount = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (saleId: string | number) => {
+      const { data } = await api.post(`/api/v1/sales/${saleId}/increment_print_count/`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+    },
+  });
+};
+
 export const useTables = () => {
   return useQuery<{ results: Table[] }>({
     queryKey: ["tables"],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/restaurant/tables/");
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+    refetchInterval: 5000, // Refresh every 5 seconds to show occupied state updates in real-time
   });
 };
 
@@ -512,9 +625,10 @@ export const useKDSTickets = (params?: any) => {
     queryKey: ["kds-tickets", params],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/kds/tickets/", { params });
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
-    refetchInterval: 5000, // Poll every 5 seconds for live updates
+    refetchInterval: 5000,
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
 };
@@ -549,10 +663,11 @@ export const useCurrentShift = () => {
   return useQuery({
     queryKey: ["current-shift"],
     queryFn: async () => {
-      const { data } = await api.get("/api/v1/shifts/current/");
+      const { data } = await api.get("/api/v1/pos/shifts/current/");
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+    retry: false, // Don't retry on 404 if no shift exists
   });
 };
 
@@ -560,14 +675,32 @@ export const useActiveSession = (tableNumber: string) => {
   return useQuery({
     queryKey: ["active-session", tableNumber],
     queryFn: async () => {
-      const { data } = await api.get("/api/v1/restaurant/sessions/", {
+      const { data } = await api.get("/api/v1/dining/sessions/", {
         params: { table_number: tableNumber, status: "active" },
       });
-      return data.results?.[0] || null;
+      // Normalize plain array or paginated response
+      const list = Array.isArray(data) ? data : (data.results || []);
+      return list[0] || null;
     },
     enabled:
       typeof window !== "undefined" && !!localStorage.getItem("fahari-token") && !!tableNumber,
     refetchInterval: 10000, // Refresh every 10 seconds to keep KDS sync
+  });
+};
+
+export const useCreateDiningSession = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tableNumber }: { tableNumber: string }) => {
+      const { data } = await api.post("/api/v1/dining/sessions/", {
+        table_number: tableNumber,
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["active-session", data.table_number] });
+      queryClient.invalidateQueries({ queryKey: ["tables"] });
+    },
   });
 };
 
@@ -581,7 +714,7 @@ export const useStartShift = () => {
       openingCash: number;
       workShiftAssignmentId?: string;
     }) => {
-      const { data } = await api.post("/api/v1/shifts/start_shift/", {
+      const { data } = await api.post("/api/v1/pos/shifts/start_shift/", {
         opening_cash: openingCash,
         work_shift_assignment: workShiftAssignmentId,
       });
@@ -600,6 +733,8 @@ export const useMyWorkShifts = () => {
       const { data } = await api.get("/api/v1/hr/assignments/", {
         params: { my_assignments: true },
       });
+      // Normalize plain array or paginated response
+      if (Array.isArray(data)) return data;
       return data.results || [];
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -610,7 +745,7 @@ export const useEndShift = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ shiftId, blindCash }: { shiftId: string; blindCash: number }) => {
-      const { data } = await api.post(`/api/v1/shifts/${shiftId}/end_shift/`, {
+      const { data } = await api.post(`/api/v1/pos/shifts/${shiftId}/end_shift/`, {
         blind_cash: blindCash,
       });
       return data;
@@ -626,7 +761,7 @@ export const useCheckoutSession = () => {
   return useMutation({
     mutationFn: async ({ sessionId, paymentData }: { sessionId: string; paymentData: any }) => {
       const { data } = await api.post(
-        `/api/v1/restaurant/sessions/${sessionId}/checkout/`,
+        `/api/v1/dining/sessions/${sessionId}/checkout/`,
         paymentData,
       );
       return data;
@@ -634,27 +769,6 @@ export const useCheckoutSession = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["active-session"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
-    },
-  });
-};
-
-export const useReports = (params?: { type: string }) => {
-  return useQuery({
-    queryKey: ["reports", params],
-    queryFn: async () => {
-      const { data } = await api.get("/api/v1/reports/", { params });
-      return data;
-    },
-    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
-  });
-};
-
-export const useMovementAnalytics = () => {
-  return useQuery({
-    queryKey: ["movement-analytics"],
-    queryFn: async () => {
-      const response = await api.get("/api/v1/movements/analytics/");
-      return response.data;
     },
   });
 };
@@ -963,6 +1077,7 @@ export const useCustomers = (params?: any) => {
     queryKey: ["customers", params],
     queryFn: async () => {
       const { data } = await api.get("/api/v1/customers/", { params });
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -987,7 +1102,8 @@ export const useDebtPayments = (customerId?: number) => {
     queryKey: ["debt-payments", customerId],
     queryFn: async () => {
       const params = customerId ? { customer: customerId } : {};
-      const { data } = await api.get("/api/v1/debt-payments/", { params });
+      const { data } = await api.get("/api/v1/debt/payments/", { params });
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -998,7 +1114,7 @@ export const useRecordDebtPayment = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: { customer: number; amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
-      const response = await api.post("/api/v1/debt-payments/", data);
+      const response = await api.post("/api/v1/debt/payments/", data);
       return response.data;
     },
     onSuccess: () => {
@@ -1013,7 +1129,8 @@ export const useLoyaltyTransactions = (customerId?: number) => {
     queryKey: ["loyalty-transactions", customerId],
     queryFn: async () => {
       const params = customerId ? { customer: customerId } : {};
-      const { data } = await api.get("/api/v1/loyalty-transactions/", { params });
+      const { data } = await api.get("/api/v1/loyalty/transactions/", { params });
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
@@ -1058,3 +1175,464 @@ export const useEtimsConfig = () => {
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
 };
+
+// Recipe & BOM management interfaces
+export interface Recipe {
+  id: number;
+  menu_item: number;
+  instructions?: string;
+  preparation_time_minutes?: number;
+  ingredients?: RecipeIngredientDetail[];
+  base_cost?: number;
+  food_cost_percentage?: number;
+}
+
+export interface RecipeIngredientDetail {
+  id: number;
+  recipe: number;
+  ingredient: number;
+  ingredient_name: string;
+  ingredient_sku: string;
+  ingredient_cost: number;
+  quantity: number;
+  unit_of_measure: string;
+  wastage_allowance_pct: number;
+}
+
+export const useRecipeForProduct = (productId: number | null) => {
+  return useQuery<Recipe | null>({
+    queryKey: ["recipe", productId],
+    queryFn: async () => {
+      if (!productId) return null;
+      const { data } = await api.get("/api/v1/recipes/", { params: { menu_item: productId } });
+      const results = Array.isArray(data) ? data : data.results || [];
+      return results[0] || null;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token") && !!productId,
+  });
+};
+
+export const useCreateRecipe = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Recipe, any, Partial<Recipe>>({
+    mutationFn: async (payload) => {
+      const { data } = await api.post("/api/v1/recipes/", payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["recipe", data.menu_item] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+};
+
+export const useUpdateRecipe = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Recipe, any, { id: number; data: Partial<Recipe> }>({
+    mutationFn: async ({ id, data: payload }) => {
+      const { data } = await api.patch(`/api/v1/recipes/${id}/`, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["recipe", data.menu_item] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+};
+
+export const useAddRecipeIngredient = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, any, any>({
+    mutationFn: async (payload) => {
+      const { data } = await api.post("/api/v1/recipe-ingredients/", payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["recipe"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+};
+
+export const useRemoveRecipeIngredient = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, any, number>({
+    mutationFn: async (id) => {
+      const { data } = await api.delete(`/api/v1/recipe-ingredients/${id}/`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recipe"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+};
+
+// ==========================================
+// Accounts & RBAC
+// ==========================================
+
+export const useUsers = () => {
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/accounts/users/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateUser = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/accounts/users/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+};
+
+export const useUpdateUser = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/accounts/users/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+};
+
+export const useRoles = () => {
+  return useQuery({
+    queryKey: ["roles"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/accounts/roles/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/accounts/roles/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
+  });
+};
+
+export const useUpdateRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/accounts/roles/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
+  });
+};
+
+export const useLoadGeneralRoles = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.post("/api/v1/accounts/roles/load_general/");
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
+  });
+};
+
+export const useLoadRestaurantRoles = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.post("/api/v1/accounts/roles/load_restaurant/");
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
+  });
+};
+
+export const useLoadLocations = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.post("/api/v1/accounts/users/load_locations/");
+      return response.data;
+    },
+  });
+};
+
+export const usePermissions = () => {
+  return useQuery({
+    queryKey: ["permissions"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/accounts/permissions/");
+      return response.data;
+    },
+  });
+};
+
+// ==========================================
+// HR Shift Management
+// ==========================================
+
+export const useShifts = () => {
+  return useQuery({
+    queryKey: ["hr-shifts"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/hr/shifts/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateShift = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/hr/shifts/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hr-shifts"] }),
+  });
+};
+
+export const useShiftAssignments = (filters?: any) => {
+  return useQuery({
+    queryKey: ["hr-shift-assignments", filters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters?.date) params.append("date", filters.date);
+      if (filters?.my_assignments) params.append("my_assignments", "true");
+      const response = await api.get(`/api/v1/hr/assignments/?${params.toString()}`);
+      return response.data;
+    },
+  });
+};
+
+export const useCreateShiftAssignment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/hr/assignments/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hr-shift-assignments"] }),
+  });
+};
+
+// ==========================================
+// HR Employee Directory
+// ==========================================
+
+export const useEmployees = () => {
+  return useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/hr/employees/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateEmployee = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/hr/employees/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
+  });
+};
+
+export const useUpdateEmployee = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/hr/employees/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
+  });
+};
+
+export const useDeleteEmployee = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/hr/employees/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
+  });
+};
+
+// ==========================================
+// HR Settings
+// ==========================================
+
+export const useHRSettings = () => {
+  return useQuery({
+    queryKey: ["hr-settings"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/hr/settings/current/");
+      return response.data;
+    },
+  });
+};
+
+export const useUpdateHRSettings = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.patch("/api/v1/hr/settings/current/", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hr-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["company-info"] });
+    },
+  });
+};
+
+// ==========================================
+// Payroll Engine
+// ==========================================
+
+export const usePayComponents = () => {
+  return useQuery({
+    queryKey: ["pay-components"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/payroll/components/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreatePayComponent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/payroll/components/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pay-components"] }),
+  });
+};
+
+export const useUpdatePayComponent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.patch(`/api/v1/payroll/components/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pay-components"] }),
+  });
+};
+
+export const useDeletePayComponent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/api/v1/payroll/components/${id}/`);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pay-components"] }),
+  });
+};
+
+export const useStatutoryBrackets = () => {
+  return useQuery({
+    queryKey: ["statutory-brackets"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/payroll/brackets/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateStatutoryBracket = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/payroll/brackets/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["statutory-brackets"], refetchType: "all" }),
+  });
+};
+
+export const useEmployeePayComponents = () => {
+  return useQuery({
+    queryKey: ["employee-pay-components"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/payroll/employee-structures/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateEmployeePayComponent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/payroll/employee-structures/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee-pay-components"] }),
+  });
+};
+
+export const usePayrollPeriods = () => {
+  return useQuery({
+    queryKey: ["payroll-periods"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/payroll/periods/");
+      return response.data;
+    },
+  });
+};
+
+export const useCreatePayrollPeriod = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/api/v1/payroll/periods/", data);
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["payroll-periods"] }),
+  });
+};
+
+export const useCalculatePayroll = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (periodId: number) => {
+      const response = await api.post(`/api/v1/payroll/periods/${periodId}/calculate/`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
+      queryClient.invalidateQueries({ queryKey: ["payslips"] });
+    },
+  });
+};
+
+export const usePayslips = () => {
+  return useQuery({
+    queryKey: ["payslips"],
+    queryFn: async () => {
+      const response = await api.get("/api/v1/payroll/payslips/");
+      return response.data;
+    },
+  });
+};
+
+

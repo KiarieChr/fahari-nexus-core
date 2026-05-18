@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   FileText,
@@ -16,8 +16,17 @@ import {
   Clock,
   ExternalLink,
 } from "lucide-react";
-import { useSales } from "@/lib/api-hooks";
+import { useSales, useIncrementSalePrintCount } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { usePrint } from "@/hooks/usePrint";
+import { toast } from "sonner";
+import { BillTemplate } from "@/components/pos/BillTemplate";
 
 export const Route = createFileRoute("/sales/")({
   head: () => ({
@@ -73,6 +82,10 @@ function SalesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+
+  const incrementPrintCount = useIncrementSalePrintCount();
+  const { printElement } = usePrint();
 
   const { data, isLoading } = useSales({
     search: search || undefined,
@@ -80,10 +93,70 @@ function SalesPage() {
     page: page,
   });
 
-  const sales = data?.results || [];
-  const totalCount = data?.count || 0;
-  const hasNext = !!data?.next;
-  const hasPrev = !!data?.previous;
+  const sales = useMemo(() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    const anyData = data as any;
+    return anyData.results || [];
+  }, [data]);
+
+  const totalCount = useMemo(() => {
+    if (!data) return 0;
+    if (Array.isArray(data)) return data.length;
+    const anyData = data as any;
+    return anyData.count || anyData.results?.length || 0;
+  }, [data]);
+
+  const hasNext = useMemo(() => {
+    if (!data || Array.isArray(data)) return false;
+    return !!(data as any).next;
+  }, [data]);
+
+  const hasPrev = useMemo(() => {
+    if (!data || Array.isArray(data)) return false;
+    return !!(data as any).previous;
+  }, [data]);
+
+  const printReceiptRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = async () => {
+    if (!selectedSale || !printReceiptRef.current) return;
+    try {
+      await printElement(printReceiptRef.current);
+      await incrementPrintCount.mutateAsync(selectedSale.id);
+      
+      setSelectedSale((prev: any) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          receipt_printed: true,
+          print_count: (prev.print_count || 0) + 1
+        };
+      });
+
+      toast.success("Receipt printed successfully!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to print receipt");
+    }
+  };
+
+  const handleDirectPrint = async (e: React.MouseEvent, sale: any) => {
+    e.stopPropagation();
+    setSelectedSale(sale);
+    setTimeout(async () => {
+      if (printReceiptRef.current) {
+        try {
+          await printElement(printReceiptRef.current);
+          await incrementPrintCount.mutateAsync(sale.id);
+          toast.success(`Receipt printed successfully for ${sale.sale_number}!`);
+        } catch (err) {
+          console.error(err);
+          toast.error("Failed to print receipt");
+        }
+      }
+    }, 150);
+  };
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-[1400px] mx-auto animate-in fade-in duration-500">
@@ -217,6 +290,7 @@ function SalesPage() {
                 sales.map((sale: any) => (
                   <tr
                     key={sale.id}
+                    onClick={() => setSelectedSale(sale)}
                     className="hover:bg-muted/40 transition-all duration-300 group cursor-pointer"
                   >
                     <td className="px-8 py-5 text-sm font-bold text-brass tabular-nums group-hover:underline">
@@ -249,7 +323,14 @@ function SalesPage() {
                       </div>
                     </td>
                     <td className="px-8 py-5">
-                      <StatusBadge status={sale.status} />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={sale.status} />
+                        {sale.receipt_printed && (
+                          <span className="text-[9px] bg-brass/10 text-brass border border-brass/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            P x{sale.print_count || 1}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
@@ -263,8 +344,14 @@ function SalesPage() {
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
                         <button
-                          className="p-2 rounded-md hover:bg-brass/10 text-muted-foreground hover:text-brass transition-all"
-                          title="Print Receipt"
+                          onClick={(e) => handleDirectPrint(e, sale)}
+                          className={cn(
+                            "p-2 rounded-md transition-all",
+                            sale.receipt_printed 
+                              ? "hover:bg-brass/20 text-brass" 
+                              : "hover:bg-brass/10 text-muted-foreground hover:text-brass"
+                          )}
+                          title={sale.receipt_printed ? `Print Receipt Again (Printed ${sale.print_count}x)` : "Print Receipt"}
                         >
                           <Printer className="size-4" />
                         </button>
@@ -304,6 +391,174 @@ function SalesPage() {
           </button>
         </div>
       </div>
+
+      {/* Transaction Details Sheet */}
+      <Sheet open={!!selectedSale} onOpenChange={(open) => !open && setSelectedSale(null)}>
+        <SheetContent className="sm:max-w-xl w-full bg-navy border-border/40 text-foreground overflow-y-auto">
+          {selectedSale && (
+            <div className="space-y-6 pt-6">
+              <SheetHeader className="border-b border-border/40 pb-4">
+                <p className="text-[10px] uppercase tracking-widest text-brass font-bold">Transaction Record</p>
+                <SheetTitle className="text-2xl font-serif font-black italic text-foreground tracking-tight flex items-center justify-between">
+                  <span>{selectedSale.sale_number}</span>
+                  <StatusBadge status={selectedSale.status} />
+                </SheetTitle>
+              </SheetHeader>
+
+              {/* Quick Metadata */}
+              <div className="grid grid-cols-2 gap-4 bg-muted/30 p-4 rounded-xl border border-border/20 text-xs">
+                <div>
+                  <p className="text-muted-foreground uppercase font-bold tracking-wider text-[9px] mb-1">Date & Time</p>
+                  <p className="font-semibold text-foreground">
+                    {new Date(selectedSale.sale_date).toLocaleString("en-KE", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground uppercase font-bold tracking-wider text-[9px] mb-1">Payment Method</p>
+                  <p className="font-semibold text-foreground uppercase tracking-widest flex items-center gap-1">
+                    <CreditCard className="size-3 text-brass" />
+                    {selectedSale.payment_method}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground uppercase font-bold tracking-wider text-[9px] mb-1">Customer</p>
+                  <p className="font-semibold text-foreground truncate">{selectedSale.customer_name || "Walk-in Associate"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground uppercase font-bold tracking-wider text-[9px] mb-1">Served By</p>
+                  <p className="font-semibold text-foreground truncate">{selectedSale.cashier_name || "System Operator"}</p>
+                </div>
+              </div>
+
+              {/* Receipt Print Tracking Status */}
+              <div className="bg-muted/40 p-4 rounded-xl border border-border/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Receipt Status</h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      {selectedSale.receipt_printed 
+                        ? `This receipt has been printed ${selectedSale.print_count || 1} time(s).` 
+                        : "This receipt has not been printed yet."}
+                    </p>
+                  </div>
+                  <div>
+                    {selectedSale.receipt_printed ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-brass/10 text-brass border border-brass/30">
+                        <Printer className="size-3" />
+                        Printed ({selectedSale.print_count})
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-muted/60 text-muted-foreground border border-border/40">
+                        <Printer className="size-3 opacity-45" />
+                        Not Printed
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handlePrint}
+                  disabled={incrementPrintCount.isPending}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-brass text-navy font-bold text-xs uppercase tracking-widest hover:bg-brass/90 active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  <Printer className="size-4" />
+                  {incrementPrintCount.isPending ? "Printing..." : selectedSale.receipt_printed ? "Print Receipt Again" : "Print Receipt"}
+                </button>
+              </div>
+
+              {/* Items Purchased */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Items In Order</h4>
+                <div className="border border-border/40 rounded-xl overflow-hidden bg-muted/10">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border/40 text-[9px] uppercase tracking-widest font-bold text-muted-foreground">
+                        <th className="px-4 py-2.5">Item Name</th>
+                        <th className="px-4 py-2.5 text-center">Qty</th>
+                        <th className="px-4 py-2.5 text-right">Price</th>
+                        <th className="px-4 py-2.5 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20 font-medium">
+                      {(selectedSale.items || []).map((item: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-muted/10">
+                          <td className="px-4 py-3 text-foreground font-semibold">{item.product_name}</td>
+                          <td className="px-4 py-3 text-center tabular-nums">{item.quantity}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">Ksh {Number(item.unit_price).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-brass font-bold tabular-nums">Ksh {Number(item.subtotal || item.unit_price * item.quantity).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Financial Breakdown */}
+              <div className="border-t border-border/40 pt-4 space-y-2 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span className="tabular-nums">Ksh {Number(selectedSale.subtotal).toLocaleString()}</span>
+                </div>
+                {Number(selectedSale.discount_amount) > 0 && (
+                  <div className="flex justify-between text-rose-400">
+                    <span>Discount ({selectedSale.discount_percentage}%)</span>
+                    <span className="tabular-nums">- Ksh {Number(selectedSale.discount_amount).toLocaleString()}</span>
+                  </div>
+                )}
+                {Number(selectedSale.tax_amount) > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>VAT ({selectedSale.tax_percentage}%)</span>
+                    <span className="tabular-nums">Ksh {Number(selectedSale.tax_amount).toLocaleString()}</span>
+                  </div>
+                )}
+                {Number(selectedSale.loyalty_discount_amount) > 0 && (
+                  <div className="flex justify-between text-emerald-400">
+                    <span>Loyalty Point discount</span>
+                    <span className="tabular-nums">- Ksh {Number(selectedSale.loyalty_discount_amount).toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-bold text-foreground border-t border-border/20 pt-2 mt-2">
+                  <span>Total Amount</span>
+                  <span className="text-brass text-base tabular-nums">Ksh {Number(selectedSale.total).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Hidden Thermal Receipt for Print Mechanism */}
+      {selectedSale && (
+        <div className="hidden">
+          <BillTemplate
+            ref={printReceiptRef}
+            businessName="FAHARI NEXUS"
+            address="Easy Biz Business Center, Nairobi"
+            phone="+254 700 000 000"
+            tableNumber={selectedSale.table_number || "COUNTER"}
+            waiterName="Cashier"
+            staffName={selectedSale.cashier_name || "Staff"}
+            billNumber={selectedSale.sale_number}
+            items={(selectedSale.items || []).map((item: any) => ({
+              name: item.product_name,
+              quantity: item.quantity,
+              price: Number(item.unit_price)
+            }))}
+            subtotal={Number(selectedSale.subtotal)}
+            tax={Number(selectedSale.tax_amount)}
+            total={Number(selectedSale.total)}
+            kraPin="P051234567A"
+            isEtimsEnabled={true}
+            serialNumber="ETMS-1234567"
+          />
+        </div>
+      )}
     </div>
   );
 }

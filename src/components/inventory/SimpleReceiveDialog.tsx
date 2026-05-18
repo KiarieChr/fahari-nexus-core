@@ -59,7 +59,7 @@ export function SimpleReceiveDialog({ open, onOpenChange, purchase }: SimpleRece
   const receiveMutation = useReceivePurchase();
   const quickStockInMutation = useQuickStockIn();
 
-  const suppliers = suppliersData?.results || [];
+  const suppliers = Array.isArray(suppliersData) ? suppliersData : (suppliersData?.results || []);
   const products = productsData?.results || [];
 
   // Initialize items when dialog opens or purchase changes
@@ -168,7 +168,7 @@ export function SimpleReceiveDialog({ open, onOpenChange, purchase }: SimpleRece
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl bg-[#030711] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
+      <DialogContent className="max-w-5xl bg-[#0A0D14] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
         <DialogHeader className="p-8 border-b border-white/5 bg-white/[0.02]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

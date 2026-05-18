@@ -39,10 +39,10 @@ import {
   useSuppliers,
   Product,
 } from "@/lib/api-hooks";
-import { Loader2, Upload, X, Package, Save } from "lucide-react";
+import { Loader2, Upload, X, Package, Save, Plus, Zap, Utensils, Layers } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { CategoryFormSheet } from "./CategoryFormSheet";
 
 const productSchema = z.object({
   name: z.string().min(2, "Product name is required"),
@@ -63,9 +63,27 @@ const productSchema = z.object({
   requires_batch_tracking: z.boolean(),
   requires_expiry_tracking: z.boolean(),
   is_active: z.boolean(),
+  product_type: z.enum(["product", "service", "menu_item", "raw_material"]).default("product"),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
+
+const getFullImageUrl = (src: string | null | undefined): string | null => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:")) {
+    return src;
+  }
+  let path = src;
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
+  if (!path.startsWith("/media/")) {
+    path = "/media" + path;
+  }
+  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+  const base = apiBase.endsWith("/") ? apiBase.slice(0, -1) : apiBase;
+  return `${base}${path}`;
+};
 
 interface ProductFormSheetProps {
   product?: Product | null;
@@ -77,10 +95,12 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
   const isEdit = !!product;
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
 
   const { data: categories } = useCategories();
   const { data: brands } = useBrands();
-  const { data: suppliers } = useSuppliers();
+  const { data: suppliersData } = useSuppliers();
+  const suppliers = Array.isArray(suppliersData) ? suppliersData : (suppliersData?.results || []);
 
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -106,6 +126,7 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
       requires_batch_tracking: false,
       requires_expiry_tracking: false,
       is_active: true,
+      product_type: "product",
     },
   });
 
@@ -130,8 +151,9 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
         requires_batch_tracking: (product as any).requires_batch_tracking || false,
         requires_expiry_tracking: (product as any).requires_expiry_tracking || false,
         is_active: (product as any).is_active ?? true,
+        product_type: product.product_type || "product",
       });
-      setImagePreview(product.image || null);
+      setImagePreview(getFullImageUrl(product.image_url || product.image) || null);
     } else if (isOpen) {
       form.reset({
         name: "",
@@ -152,6 +174,7 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
         requires_batch_tracking: false,
         requires_expiry_tracking: false,
         is_active: true,
+        product_type: "product",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -191,23 +214,24 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-2xl border-l border-brass/20 bg-[#0A0D14] text-white p-0 overflow-hidden flex flex-col">
-        <SheetHeader className="px-6 py-6 border-b border-white/5 bg-white/[0.02]">
-          <SheetTitle className="text-xl font-display text-white">
-            {isEdit ? "Edit Product" : "New Product SKU"}
-          </SheetTitle>
-          <SheetDescription className="text-muted-foreground text-xs uppercase tracking-widest">
-            {isEdit ? `Modifying ${product.name}` : "Add a new item to your inventory catalog"}
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={isOpen} onOpenChange={onOpenChange}>
+        <SheetContent className="sm:max-w-2xl border-l border-brass/20 bg-[#0A0D14] text-white p-0 overflow-hidden flex flex-col">
+          <SheetHeader className="px-6 py-6 border-b border-white/5 bg-white/[0.02]">
+            <SheetTitle className="text-xl font-display text-white">
+              {isEdit ? "Edit Product" : "New Product SKU"}
+            </SheetTitle>
+            <SheetDescription className="text-muted-foreground text-xs uppercase tracking-widest">
+              {isEdit ? `Modifying ${product.name}` : "Add a new item to your inventory catalog"}
+            </SheetDescription>
+          </SheetHeader>
 
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex-1 flex flex-col overflow-hidden"
-          >
-            <ScrollArea className="flex-1 px-6 py-6">
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex-1 flex flex-col overflow-hidden"
+            >
+              <ScrollArea className="flex-1 px-6 py-6">
               <div className="space-y-8 pb-10">
                 {/* Image Upload Area */}
                 <div className="space-y-4">
@@ -261,6 +285,40 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
                   <div className="space-y-6">
                     <FormField
                       control={form.control}
+                      name="product_type"
+                      render={({ field }) => (
+                        <FormItem className="col-span-full mb-2">
+                          <FormLabel className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                            Item Type
+                          </FormLabel>
+                          <div className="grid grid-cols-2 gap-3">
+                            <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all cursor-pointer ${field.value === 'product' ? 'bg-brass/10 border-brass text-brass' : 'bg-white/[0.02] border-white/10 text-muted-foreground hover:bg-white/[0.05]'}`}>
+                              <input type="radio" className="hidden" checked={field.value === 'product'} onChange={() => field.onChange('product')} />
+                              <Package className="size-4" />
+                              <span className="text-[9px] font-bold uppercase tracking-widest">Physical SKU</span>
+                            </label>
+                            <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all cursor-pointer ${field.value === 'service' ? 'bg-brass/10 border-brass text-brass' : 'bg-white/[0.02] border-white/10 text-muted-foreground hover:bg-white/[0.05]'}`}>
+                              <input type="radio" className="hidden" checked={field.value === 'service'} onChange={() => field.onChange('service')} />
+                              <Zap className="size-4" />
+                              <span className="text-[9px] font-bold uppercase tracking-widest">Service</span>
+                            </label>
+                            <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all cursor-pointer ${field.value === 'menu_item' ? 'bg-brass/10 border-brass text-brass' : 'bg-white/[0.02] border-white/10 text-muted-foreground hover:bg-white/[0.05]'}`}>
+                              <input type="radio" className="hidden" checked={field.value === 'menu_item'} onChange={() => field.onChange('menu_item')} />
+                              <Utensils className="size-4" />
+                              <span className="text-[9px] font-bold uppercase tracking-widest">Prepared Food</span>
+                            </label>
+                            <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all cursor-pointer ${field.value === 'raw_material' ? 'bg-brass/10 border-brass text-brass' : 'bg-white/[0.02] border-white/10 text-muted-foreground hover:bg-white/[0.05]'}`}>
+                              <input type="radio" className="hidden" checked={field.value === 'raw_material'} onChange={() => field.onChange('raw_material')} />
+                              <Layers className="size-4" />
+                              <span className="text-[9px] font-bold uppercase tracking-widest">Ingredient</span>
+                            </label>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
                       name="name"
                       render={({ field }) => (
                         <FormItem>
@@ -304,9 +362,19 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
                       name="category"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
-                            Category
-                          </FormLabel>
+                          <div className="flex items-center justify-between">
+                            <FormLabel className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                              Category
+                            </FormLabel>
+                            <button
+                              type="button"
+                              onClick={() => setIsCategorySheetOpen(true)}
+                              className="text-[10px] text-brass hover:text-brass-light transition-colors font-bold uppercase tracking-wider flex items-center gap-1"
+                            >
+                              <Plus className="size-2.5" />
+                              New
+                            </button>
+                          </div>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger className="bg-white/[0.03] border-white/10 h-11 focus:border-brass/50 text-white">
@@ -369,7 +437,7 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent className="bg-[#0A0D14] border-white/10 text-white">
-                              {suppliers?.results?.map((sup: any) => (
+                              {suppliers?.map((sup: any) => (
                                 <SelectItem key={sup.id} value={sup.id.toString()}>
                                   {sup.name}
                                 </SelectItem>
@@ -470,8 +538,9 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
                   </div>
                 </div>
 
-                {/* Stock Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Stock Controls (Hidden for Services) */}
+                {form.watch("product_type") === "product" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                       Inventory Thresholds
@@ -581,8 +650,9 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
                     </div>
                   </div>
                 </div>
-              </div>
-            </ScrollArea>
+              )}
+            </div>
+          </ScrollArea>
 
             <SheetFooter className="p-6 border-t border-white/5 bg-[#0A0D14]/90 backdrop-blur-xl flex gap-3">
               <Button
@@ -610,5 +680,7 @@ export function ProductFormSheet({ product, isOpen, onOpenChange }: ProductFormS
         </Form>
       </SheetContent>
     </Sheet>
+    <CategoryFormSheet isOpen={isCategorySheetOpen} onOpenChange={setIsCategorySheetOpen} />
+    </>
   );
 }

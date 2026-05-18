@@ -65,8 +65,17 @@ function StockTransfersPage() {
   const { data: analyticsData } = useMovementAnalytics();
   const dispatchMutation = useDispatchTransfer();
 
-  const transfers = transfersData?.results || [];
-  const movements = movementsData?.results || [];
+  const transfers = useMemo(() => {
+    if (!transfersData) return [];
+    if (Array.isArray(transfersData)) return transfersData;
+    return transfersData.results || [];
+  }, [transfersData]);
+
+  const movements = useMemo(() => {
+    if (!movementsData) return [];
+    if (Array.isArray(movementsData)) return movementsData;
+    return movementsData.results || [];
+  }, [movementsData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -88,7 +97,7 @@ function StockTransfersPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#030711] min-h-screen text-white">
+    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#0A0D14] min-h-screen text-white">
       {/* Header Area */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
@@ -148,7 +157,7 @@ function StockTransfersPage() {
              ))}
           </div>
 
-          <div className="rounded-3xl border border-white/5 bg-white/[0.01] overflow-hidden">
+          <div className="rounded-3xl border border-white/5 bg-white/[0.02] overflow-hidden">
              <Table>
                <TableHeader className="bg-white/[0.02]">
                  <TableRow className="border-white/5">
@@ -224,7 +233,7 @@ function StockTransfersPage() {
         </TabsContent>
 
         <TabsContent value="ledger" className="space-y-6">
-           <div className="rounded-3xl border border-white/5 bg-white/[0.01] overflow-hidden">
+           <div className="rounded-3xl border border-white/5 bg-white/[0.02] overflow-hidden">
              <Table>
                <TableHeader className="bg-white/[0.02]">
                  <TableRow className="border-white/5">

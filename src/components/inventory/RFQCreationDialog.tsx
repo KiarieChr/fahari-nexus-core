@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { 
   Table, 
   TableBody, 
@@ -28,7 +29,7 @@ import {
   Calendar,
   AlertCircle
 } from "lucide-react";
-import { useProducts, useBranches } from "@/lib/api-hooks";
+import { useProducts, useBranches, useCreateRFQ } from "@/lib/api-hooks";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -47,9 +48,10 @@ export function RFQCreationDialog({ open, onOpenChange }: RFQCreationDialogProps
 
   const { data: productsData } = useProducts();
   const { data: branchesData } = useBranches();
+  const createRFQ = useCreateRFQ();
   
   const products = productsData?.results || [];
-  const branches = branchesData?.results || [];
+  const branches = Array.isArray(branchesData) ? branchesData : (branchesData?.results || []);
 
   const filteredProducts = products.filter((p: any) => 
     p.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -67,10 +69,31 @@ export function RFQCreationDialog({ open, onOpenChange }: RFQCreationDialogProps
   };
 
   const handleCreate = async () => {
-    // API logic would go here
-    toast.success("RFQ published successfully!");
-    onOpenChange(false);
-    reset();
+    if (!branch) {
+      toast.error("Please select a branch.");
+      return;
+    }
+    if (items.length === 0) {
+      toast.error("Please add at least one item.");
+      return;
+    }
+    try {
+      const payload = {
+        branch: Number(branch),
+        deadline: deadline ? new Date(deadline).toISOString() : null,
+        items: items.map(i => ({
+          product: Number(i.id),
+          quantity: Number(i.quantity)
+        }))
+      };
+      await createRFQ.mutateAsync(payload);
+      toast.success("RFQ published successfully!");
+      onOpenChange(false);
+      reset();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Failed to publish RFQ";
+      toast.error(errorMsg);
+    }
   };
 
   const reset = () => {
@@ -81,7 +104,7 @@ export function RFQCreationDialog({ open, onOpenChange }: RFQCreationDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl bg-[#030711] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
+      <DialogContent className="max-w-4xl bg-[#0A0D14] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
         <DialogHeader className="p-8 border-b border-white/5 bg-white/[0.02]">
           <div className="flex items-center gap-4">
              <div className="size-12 rounded-2xl bg-brass/10 border border-brass/20 flex items-center justify-center text-brass">
@@ -125,13 +148,13 @@ export function RFQCreationDialog({ open, onOpenChange }: RFQCreationDialogProps
                 <div className="space-y-4">
                    <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Requesting Branch</Label>
                    <select 
-                     className="w-full h-14 bg-white/5 border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-brass/50"
+                     className="w-full h-14 bg-white/5 border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-brass/50 [&>option]:bg-[#0A0D14] [&>option]:text-white"
                      value={branch}
                      onChange={(e) => setBranch(e.target.value)}
                    >
-                      <option value="">Select branch</option>
+                      <option value="" className="bg-[#0A0D14] text-white">Select branch</option>
                       {branches.map((b: any) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
+                        <option key={b.id} value={b.id} className="bg-[#0A0D14] text-white">{b.name}</option>
                       ))}
                    </select>
                 </div>
@@ -182,51 +205,53 @@ export function RFQCreationDialog({ open, onOpenChange }: RFQCreationDialogProps
                 </div>
 
                 <div className="rounded-2xl border border-white/5 bg-white/[0.01] overflow-hidden">
-                   <Table>
-                      <TableHeader className="bg-white/[0.02]">
-                         <TableRow className="border-white/5">
-                            <TableHead className="text-[10px] uppercase font-bold tracking-widest">Product</TableHead>
-                            <TableHead className="text-[10px] uppercase font-bold tracking-widest w-32 text-center">Required Qty</TableHead>
-                            <TableHead className="text-right text-[10px] uppercase font-bold tracking-widest">Action</TableHead>
-                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                         {items.length === 0 ? (
-                           <TableRow className="hover:bg-transparent border-white/5">
-                              <TableCell colSpan={3} className="h-32 text-center">
-                                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Search and add items to your request</p>
-                              </TableCell>
-                           </TableRow>
-                         ) : items.map((item) => (
-                           <TableRow key={item.id} className="border-white/5">
-                              <TableCell>
-                                 <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-white">{item.name}</span>
-                                    <span className="text-[9px] text-muted-foreground font-mono">{item.sku}</span>
-                                 </div>
-                              </TableCell>
-                              <TableCell>
-                                 <Input 
-                                   type="number" 
-                                   className="h-9 text-center bg-white/5 border-white/10 rounded-lg text-xs"
-                                   value={item.quantity}
-                                   onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, quantity: Number(e.target.value) } : i))}
-                                 />
-                              </TableCell>
-                              <TableCell className="text-right">
-                                 <Button 
-                                   variant="ghost" 
-                                   size="sm" 
-                                   className="text-rose-500 hover:text-rose-400"
-                                   onClick={() => removeItem(item.id)}
-                                 >
-                                    <Trash2 className="size-4" />
-                                 </Button>
-                              </TableCell>
-                           </TableRow>
-                         ))}
-                      </TableBody>
-                   </Table>
+                   <ScrollArea className="max-h-[300px]">
+                      <Table>
+                         <TableHeader className="bg-white/[0.02] sticky top-0 bg-[#0A0D14] z-10">
+                            <TableRow className="border-white/5">
+                               <TableHead className="text-[10px] uppercase font-bold tracking-widest">Product</TableHead>
+                               <TableHead className="text-[10px] uppercase font-bold tracking-widest w-32 text-center">Required Qty</TableHead>
+                               <TableHead className="text-right text-[10px] uppercase font-bold tracking-widest">Action</TableHead>
+                            </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                            {items.length === 0 ? (
+                              <TableRow className="hover:bg-transparent border-white/5">
+                                 <TableCell colSpan={3} className="h-32 text-center">
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Search and add items to your request</p>
+                                 </TableCell>
+                              </TableRow>
+                            ) : items.map((item) => (
+                              <TableRow key={item.id} className="border-white/5">
+                                 <TableCell>
+                                    <div className="flex flex-col">
+                                       <span className="text-xs font-bold text-white">{item.name}</span>
+                                       <span className="text-[9px] text-muted-foreground font-mono">{item.sku}</span>
+                                    </div>
+                                 </TableCell>
+                                 <TableCell>
+                                    <Input 
+                                      type="number" 
+                                      className="h-9 text-center bg-white/5 border-white/10 rounded-lg text-xs"
+                                      value={item.quantity}
+                                      onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, quantity: Number(e.target.value) } : i))}
+                                    />
+                                 </TableCell>
+                                 <TableCell className="text-right">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-rose-500 hover:text-rose-400"
+                                      onClick={() => removeItem(item.id)}
+                                    >
+                                       <Trash2 className="size-4" />
+                                    </Button>
+                                 </TableCell>
+                              </TableRow>
+                            ))}
+                         </TableBody>
+                      </Table>
+                   </ScrollArea>
                 </div>
              </div>
            )}
@@ -246,15 +271,17 @@ export function RFQCreationDialog({ open, onOpenChange }: RFQCreationDialogProps
                    </div>
                    
                    <div className="pt-6 border-t border-white/10">
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Line Items Preview</p>
-                      <div className="grid grid-cols-2 gap-3">
-                         {items.map(item => (
-                           <div key={item.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
-                              <span className="text-[10px] font-bold text-white truncate mr-2">{item.name}</span>
-                              <Badge className="bg-brass text-navy font-bold text-[9px]">{item.quantity}</Badge>
-                           </div>
-                         ))}
-                      </div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Line Items Preview ({items.length})</p>
+                      <ScrollArea className="max-h-[160px] pr-2">
+                         <div className="grid grid-cols-2 gap-3">
+                            {items.map(item => (
+                              <div key={item.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
+                                 <span className="text-[10px] font-bold text-white truncate mr-2">{item.name}</span>
+                                 <Badge className="bg-brass text-navy font-bold text-[9px]">{item.quantity}</Badge>
+                              </div>
+                            ))}
+                         </div>
+                      </ScrollArea>
                    </div>
                 </div>
 

@@ -10,6 +10,7 @@ import {
   ChefHat,
   Beer,
   Clock,
+  UtensilsCrossed,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BillTemplate } from "./BillTemplate";
@@ -24,6 +25,7 @@ import {
   useCreateKDSOrder,
   useActiveSession,
   useCheckoutSession,
+  useCreateDiningSession,
 } from "@/lib/api-hooks";
 import { KOTTemplate } from "./KOTTemplate";
 
@@ -49,6 +51,7 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
   const createSale = useCreateSale();
   const createKDSOrder = useCreateKDSOrder();
   const checkoutSession = useCheckoutSession();
+  const createDiningSession = useCreateDiningSession();
 
   const { data: activeSession, isLoading: sessionLoading } = useActiveSession(tableNumber);
 
@@ -177,12 +180,21 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
             <div>
               <h2 className="font-bold text-lg flex items-center gap-2">
                 Table {tableNumber}
-                <span className="text-xs font-normal px-2 py-0.5 bg-destructive/10 text-destructive rounded-full">
-                  Active
-                </span>
+                {activeSession ? (
+                  <span className="text-xs font-normal px-2 py-0.5 bg-destructive/10 text-destructive rounded-full">
+                    Active
+                  </span>
+                ) : (
+                  <span className="text-xs font-normal px-2 py-0.5 bg-success/10 text-success rounded-full">
+                    Available
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Started 45m ago
+                <Clock className="w-3 h-3" />{" "}
+                {activeSession
+                  ? `Active since ${new Date(activeSession.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : "No active session"}
               </p>
             </div>
           </div>
@@ -223,72 +235,121 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
         {/* Main Content Area: History or Menu */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {viewMode === "history" ? (
-            <div className="flex-1 overflow-y-auto p-6 space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
-              {rounds.map((roundNum) => (
-                <div key={roundNum} className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground whitespace-nowrap">
-                      Round {roundNum}
-                    </h3>
-                    <div className="h-px bg-border flex-1" />
+            !activeSession ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+                <div className="max-w-md bg-card/40 border backdrop-blur-md rounded-3xl p-8 shadow-elevated space-y-6">
+                  <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto shadow-glow">
+                    <UtensilsCrossed className="w-8 h-8" />
                   </div>
-                  <div className="space-y-1">
-                    {orderHistory
-                      .filter((item) => item.round === roundNum)
-                      .map((item) => (
-                        <div
-                          key={item.id}
-                          className="group flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={cn(
-                                "w-10 h-10 rounded-lg flex items-center justify-center",
-                                item.station === "kitchen"
-                                  ? "bg-orange-500/10 text-orange-500"
-                                  : "bg-blue-500/10 text-blue-500",
-                              )}
-                            >
-                              {item.station === "kitchen" ? (
-                                <ChefHat className="w-5 h-5" />
-                              ) : (
-                                <Beer className="w-5 h-5" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-sm">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {item.quantity} × Ksh {item.price.toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <span
-                              className={cn(
-                                "text-[10px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded-full border",
-                                item.status === "served"
-                                  ? "bg-success/10 text-success border-success/20"
-                                  : "bg-warning/10 text-warning border-warning/20",
-                              )}
-                            >
-                              {item.status}
-                            </span>
-                            <p className="font-bold text-sm w-24 text-right">
-                              Ksh {(item.price * item.quantity).toLocaleString()}
-                            </p>
-                            <button
-                              onClick={() => handleVoidItem(item.id)}
-                              className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-xl">Table {tableNumber} is Available</h3>
+                    <p className="text-sm text-muted-foreground px-4">
+                      Start a dining session to open this table for guests, set up order tickets, and send requests directly to the kitchen and bar.
+                    </p>
                   </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await createDiningSession.mutateAsync({ tableNumber });
+                      } catch (err) {
+                        console.error("Failed to start session:", err);
+                      }
+                    }}
+                    disabled={createDiningSession.isPending}
+                    className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-2xl shadow-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    {createDiningSession.isPending ? "Starting Session..." : "Start Dining Session"}
+                  </button>
+                  <button
+                    onClick={() => setViewMode("menu")}
+                    className="w-full py-3 bg-secondary text-secondary-foreground font-semibold rounded-2xl hover:opacity-90 transition-opacity"
+                  >
+                    Browse Menu & Order
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : orderHistory.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 text-muted-foreground opacity-60">
+                <ChefHat className="w-16 h-16 mb-4" />
+                <h3 className="font-bold text-lg">Session Started</h3>
+                <p className="text-sm max-w-xs mt-1">
+                  Table {tableNumber} is open. Add items from the menu to send your first round to the kitchen!
+                </p>
+                <button
+                  onClick={() => setViewMode("menu")}
+                  className="mt-6 px-6 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+                >
+                  Open Menu
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-6 space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
+                {rounds.map((roundNum) => (
+                  <div key={roundNum} className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+                        Round {roundNum}
+                      </h3>
+                      <div className="h-px bg-border flex-1" />
+                    </div>
+                    <div className="space-y-1">
+                      {orderHistory
+                        .filter((item) => item.round === roundNum)
+                        .map((item) => (
+                          <div
+                            key={item.id}
+                            className="group flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div
+                                className={cn(
+                                  "w-10 h-10 rounded-lg flex items-center justify-center",
+                                  item.station === "kitchen"
+                                    ? "bg-orange-500/10 text-orange-500"
+                                    : "bg-blue-500/10 text-blue-500",
+                                )}
+                              >
+                                {item.station === "kitchen" ? (
+                                  <ChefHat className="w-5 h-5" />
+                                ) : (
+                                  <Beer className="w-5 h-5" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-sm">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.quantity} × Ksh {item.price.toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span
+                                className={cn(
+                                  "text-[10px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded-full border",
+                                  item.status === "served"
+                                    ? "bg-success/10 text-success border-success/20"
+                                    : "bg-warning/10 text-warning border-warning/20",
+                                )}
+                              >
+                                {item.status}
+                              </span>
+                              <p className="font-bold text-sm w-24 text-right">
+                                Ksh {(item.price * item.quantity).toLocaleString()}
+                              </p>
+                              <button
+                                onClick={() => handleVoidItem(item.id)}
+                                className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
             <div className="flex-1 overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
               <MenuGrid onAddItem={handleAddItem} />
@@ -456,6 +517,7 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
           ref={billRef}
           tableNumber={tableNumber}
           waiterName="John Doe"
+          staffName="John Doe"
           billNumber={`BN-${Math.floor(Math.random() * 10000)}`}
           items={[...orderHistory, ...draftItems].map((item) => ({
             name: item.name,

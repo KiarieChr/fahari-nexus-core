@@ -25,7 +25,7 @@ import {
 import { companyApi, Company, Branch } from "@/api/company";
 import { integrationsApi, MpesaConfig, BankConfig, EtimsConfig } from "@/api/integrations";
 import { toast } from "sonner";
-import { useUserProfile } from "@/lib/api-hooks";
+import { useUserProfile, useLoadLocations } from "@/lib/api-hooks";
 
 export const Route = createFileRoute("/company")({
   component: CompanyPage,
@@ -45,6 +45,7 @@ function CompanyPage() {
   const [isEtimsLocked, setIsEtimsLocked] = useState(true);
 
   const { data: profile } = useUserProfile();
+  const loadLocations = useLoadLocations();
 
   useEffect(() => {
     if (profile) {
@@ -177,6 +178,15 @@ function CompanyPage() {
       fetchData();
     } catch (error) {
       toast.error("Failed to update eTIMS config");
+    }
+  };
+
+  const handleLoadLocations = async () => {
+    try {
+      await loadLocations.mutateAsync();
+      toast.success("Global locations (Countries, Regions, Cities) loaded successfully!");
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to load locations");
     }
   };
 
@@ -506,6 +516,38 @@ function CompanyPage() {
               )}
             </CardContent>
           </Card>
+
+          {user?.is_superuser && (
+            <Card className="shadow-lg border-muted/40 overflow-hidden mt-8 border-t-4 border-t-red-600">
+              <CardHeader className="pb-6 border-b bg-muted/5">
+                <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                  <ShieldCheck className="w-6 h-6 text-red-600" /> System Administration
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Global settings and configuration data visible only to Super Administrators.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Global Locations Data</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-lg">
+                      Populate or update the system database with all African countries, Kenyan counties, and cities.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleLoadLocations} 
+                    disabled={loadLocations.isPending}
+                    variant="destructive"
+                    className="gap-2"
+                  >
+                    {loadLocations.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                    Load Locations Database
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="branches" className="space-y-8 animate-in fade-in-50 duration-500">

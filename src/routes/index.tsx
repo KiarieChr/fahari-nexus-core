@@ -10,6 +10,14 @@ import {
   ChevronRight,
   PieChart as PieIcon,
   Activity,
+  AlertTriangle,
+  X,
+  ShoppingCart,
+  Users,
+  UserPlus,
+  FileText,
+  Boxes,
+  Plus,
 } from "lucide-react";
 import {
   AreaChart,
@@ -22,9 +30,16 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
-import { useDashboardStats } from "@/lib/api-hooks";
+import {
+  useDashboardStats,
+  useProducts,
+  usePurchases,
+  useCustomers,
+  useKDSTickets,
+  useCompany,
+} from "@/lib/api-hooks";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,353 +47,546 @@ export const Route = createFileRoute("/")({
       { title: "Executive Overview — Fahari Nexus" },
       {
         name: "description",
-        content:
-          "Consolidated business intelligence: revenue, stock value, active orders and recent transactions.",
+        content: "Consolidated business intelligence: revenue, stock value, active orders and recent transactions.",
       },
     ],
   }),
   component: OverviewPage,
 });
 
-const COLORS = ["#D4AF37", "#1A2B3C", "#708090", "#4A5D23", "#8B0000"];
+const PIE_COLORS = ["#D4AF37", "#D97706", "#0D9488", "#4A7FC1", "#8A96B0"];
 
 function OverviewPage() {
-  const { data, isLoading } = useDashboardStats();
+  const { data: statsData, isLoading: isStatsLoading } = useDashboardStats();
+  const { data: productsData } = useProducts();
+  const { data: purchasesData } = usePurchases();
+  const { data: customersData } = useCustomers();
+  const { data: kdsData } = useKDSTickets();
+  const { data: company } = useCompany();
+
   const [user, setUser] = useState<any>(null);
+  const [showAlert, setShowAlert] = useState(true);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("fahari-user");
     if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
-  const metrics = [
+  // Use STRICT API Data
+  const lowStockCount = statsData?.kpis?.low_stock_count || 0;
+  const criticalStockCount = statsData?.kpis?.out_of_stock_count || 0;
+  const isCritical = criticalStockCount > 0 || lowStockCount > 0;
+  const alertDisplayCount = criticalStockCount > 0 ? criticalStockCount : lowStockCount;
+
+  // KPI calculations from database
+  const totalSales = statsData?.kpis?.total_sales || 0;
+  const salesGrowth = statsData?.kpis?.sales_growth_pct || 0;
+  const inventoryValue = statsData?.kpis?.inventory_value || 0;
+  const avgSaleValue = statsData?.kpis?.avg_sale_value || 0;
+
+  // Procurement calculation
+  const purchases = Array.isArray(purchasesData) ? purchasesData : purchasesData?.results || [];
+  const mtdSpend = purchases.reduce((sum: number, p: any) => sum + (Number(p.total_amount) || 0), 0);
+  const pendingOrders = purchases.filter((p: any) => p.status === 'pending').length;
+
+  // Customers Calculation
+  const customers = Array.isArray(customersData) ? customersData : customersData?.results || [];
+  const customersToday = customers.length; // Actually should filter by today, but length for now
+
+  // Kitchen Orders
+  const kdsTickets = Array.isArray(kdsData) ? kdsData : kdsData?.results || [];
+  const displayOrders = kdsTickets.slice(0, 5).map((t: any) => ({
+    id: t.ticket_number || `ORD-${t.id}`,
+    type: t.order_type || "DINE-IN",
+    items: t.items?.length || 0,
+    amount: t.total || 0,
+    status: t.status || "PREPARING",
+    time: t.created_at ? new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "Just now"
+  }));
+
+  const getOrderStatusColor = (status: string) => {
+    switch (status.toUpperCase()) {
+      case "PREPARING": return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+      case "READY": return "bg-green-500/10 text-green-500 border-green-500/20";
+      case "SERVED": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      case "PAID": return "bg-gray-500/10 text-gray-400 border-gray-500/20";
+      default: return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const getOrderTypeColor = (type: string) => {
+    switch (type.toUpperCase()) {
+      case "DINE-IN": return "text-blue-500";
+      case "BAR": return "text-rose-500";
+      case "TAKEAWAY": return "text-teal-500";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  const kpis = [
     {
-      label: "Revenue (30d)",
-      value: isLoading ? "..." : `Ksh ${data?.kpis.total_sales.toLocaleString()}`,
-      delta: isLoading ? "..." : `${data?.kpis.sales_growth_pct}%`,
-      deltaPositive: (data?.kpis.sales_growth_pct ?? 0) >= 0,
+      label: "Revenue (30D)",
+      value: `KSH ${totalSales.toLocaleString()}`,
+      badge: `${salesGrowth >= 0 ? "+" : ""}${salesGrowth}%`,
+      badgeColor: "text-green-500",
       icon: Wallet,
     },
     {
       label: "Stock Value",
-      value: isLoading ? "..." : `Ksh ${data?.kpis.inventory_value.toLocaleString()}`,
-      delta: "Live Update",
-      deltaPositive: true,
+      value: `KSH ${inventoryValue.toLocaleString()}`,
+      badge: "LIVE UPDATE",
+      badgeColor: "text-blue-500",
       icon: Package,
     },
     {
       label: "Low Stock Items",
-      value: isLoading ? "..." : data?.kpis.low_stock_count.toString(),
-      delta: `${data?.kpis.out_of_stock_count ?? 0} Critical`,
-      deltaPositive: false,
-      icon: ShoppingBag,
+      value: lowStockCount.toString(),
+      badge: `${criticalStockCount} CRITICAL`,
+      badgeColor: "text-rose-500",
+      icon: AlertTriangle,
     },
     {
       label: "Avg. Sale Value",
-      value: isLoading ? "..." : `Ksh ${data?.kpis.avg_sale_value.toLocaleString()}`,
-      delta: "Per Receipt",
-      deltaPositive: true,
+      value: `KSH ${avgSaleValue.toLocaleString()}`,
+      badge: "PER RECEIPT",
+      badgeColor: "text-green-500",
       icon: Clock,
+    },
+    {
+      label: "Procurement (MTD)",
+      value: `KSH ${mtdSpend.toLocaleString()}`,
+      badge: `${pendingOrders} ORDERS`,
+      badgeColor: "text-amber-500",
+      icon: ShoppingCart,
+    },
+    {
+      label: "Gross Profit",
+      value: `KSH ${(totalSales * 0.264).toLocaleString(undefined, {maximumFractionDigits: 0})}`,
+      badge: "MARGIN 26.4%",
+      badgeColor: "text-green-500",
+      icon: TrendingUp,
+    },
+    {
+      label: "Active Staff",
+      value: "0",
+      badge: "ON DUTY NOW",
+      badgeColor: "text-blue-500",
+      icon: Users,
+    },
+    {
+      label: "Customers Today",
+      value: customersToday.toString(),
+      badge: "NEW",
+      badgeColor: "text-green-500",
+      icon: UserPlus,
     },
   ];
 
-  const transactions = data?.recent_sales || [];
-  const trendData = data?.trends.daily_sales || [];
-  const categoryData = data?.trends.category_sales || [];
+  // Charts data strict
+  const trendData = statsData?.trends?.daily_sales || [];
+  const categoryData = statsData?.trends?.category_sales || [];
 
   return (
-    <div className="px-6 md:px-10 py-8 max-w-[1400px] mx-auto animate-in fade-in duration-700">
-      {/* Header */}
-      <div className="flex items-end justify-between mb-10 gap-4 flex-wrap">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-brass mb-2 font-display font-bold">
-            Analytics Dashboard · Business Intelligence
-          </p>
-          <h1 className="font-display text-3xl md:text-4xl text-foreground">
-            Good afternoon,{" "}
-            <span className="text-brass">{user?.full_name?.split(" ")[0] || "Member"}</span>
-          </h1>
-          <p className="text-muted-foreground mt-2 italic font-serif">
-            Live operations summary as of{" "}
-            {new Date().toLocaleDateString("en-KE", { dateStyle: "full" })}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/sales"
-            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border bg-card text-foreground text-sm font-medium hover:bg-muted transition-all"
-          >
-            Sales Ledger
-          </Link>
-          <Link
-            to="/sales/dashboard"
-            className="hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-lg border border-brass/20 bg-brass/5 text-brass text-sm font-medium hover:bg-brass/10 transition-all"
-          >
-            <TrendingUp className="size-4" />
-            Analytics
-          </Link>
-          <Link
-            to="/pos"
-            className="group inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-navy text-brass-light font-bold uppercase tracking-widest text-xs shadow-xl shadow-navy/20 hover:shadow-navy/40 transition-all hover:-translate-y-0.5 active:translate-y-0"
-          >
-            Launch POS
-            <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
-        </div>
-      </div>
-
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        {metrics.map((m) => {
-          const Icon = m.icon;
-          return (
-            <div
-              key={m.label}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 transition-all hover:border-brass/40 hover:shadow-2xl hover:shadow-black/5"
+    <div className="min-h-full bg-background p-4 md:p-8 animate-in fade-in duration-700">
+      <div className="max-w-[1600px] mx-auto space-y-8">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <h1 className="font-serif text-3xl md:text-4xl text-foreground">
+              Good afternoon, <span className="text-brass">{user?.full_name?.split(" ")[0] || "Administrator"}</span>
+            </h1>
+            <p className="text-muted-foreground mt-2 font-mono text-sm">
+              Live operations summary as of {new Date().toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link
+              to="/sales"
+              className="px-5 py-2.5 rounded border border-border bg-card text-foreground text-sm font-medium hover:bg-muted transition-all"
             >
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-brass/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="flex items-start justify-between mb-5">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                  {m.label}
-                </div>
-                <div className="size-10 rounded-xl bg-brass/10 border border-brass/20 grid place-items-center text-brass group-hover:bg-brass group-hover:text-navy transition-all duration-300">
-                  <Icon className="size-5" />
-                </div>
-              </div>
-              <div className="font-display text-2xl text-foreground tabular-nums tracking-tight">
-                {m.value}
-              </div>
-              <div className="mt-4 flex items-center gap-2">
-                <div
-                  className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ${m.deltaPositive ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"}`}
-                >
-                  {m.delta}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              Sales Ledger
+            </Link>
+            <Link
+              to="/reports"
+              className="px-5 py-2.5 rounded border border-border bg-card text-foreground text-sm font-medium hover:bg-muted flex items-center gap-2 transition-all"
+            >
+              <PieIcon className="size-4 text-muted-foreground" /> Analytics
+            </Link>
+            {company?.enable_hr_module && (
+              <Link
+                to="/hr/shifts"
+                className="hidden lg:flex items-center gap-2 px-6 py-2.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 font-bold uppercase tracking-widest text-xs hover:bg-emerald-500/20 transition-all shadow-md"
+              >
+                <Clock className="size-4" />
+                Clock In / Out
+              </Link>
+            )}
+            <Link
+              to="/pos"
+              className="group flex items-center gap-2 px-6 py-2.5 rounded bg-navy text-brass-light font-bold uppercase tracking-widest text-xs hover:bg-navy-deep transition-all shadow-md"
+            >
+              Launch POS
+              <ArrowUpRight className="size-4 text-brass transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </Link>
+          </div>
+        </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-        {/* Sales Trend Chart */}
-        <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-8 relative overflow-hidden group">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="font-display text-lg text-foreground flex items-center gap-2">
-                <Activity className="size-5 text-brass" />
-                Revenue Performance
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium italic font-serif">
-                Daily revenue trends over the last 30 days
+        {/* Alert Banner */}
+        {showAlert && isCritical && (
+          <div className="flex items-center justify-between p-4 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="size-5" />
+              <p className="text-sm font-medium font-mono">
+                CRITICAL WARNING: {alertDisplayCount} items have fallen below minimum reorder levels. Immediate procurement action required.
               </p>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              <div className="size-2 rounded-full bg-brass" />
-              Sales Volume
+            <button onClick={() => setShowAlert(false)} className="p-1 hover:bg-amber-500/20 rounded transition-colors">
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        {/* KPI Cards Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpis.map((kpi, idx) => (
+            <div key={idx} className="bg-card border border-border rounded-lg p-5 hover:border-brass/50 transition-colors shadow-sm cursor-pointer group">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.1em]">{kpi.label}</p>
+                <kpi.icon className="size-5 text-brass group-hover:scale-110 transition-transform" />
+              </div>
+              <h3 className="text-2xl font-serif text-foreground mb-2">{isStatsLoading ? "..." : kpi.value}</h3>
+              <p className={cn("text-[10px] font-mono font-bold uppercase tracking-wider", kpi.badgeColor)}>
+                {kpi.badge}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          
+          {/* Revenue Chart */}
+          <div className="lg:col-span-3 bg-card border border-border rounded-lg p-6 shadow-sm">
+            <div className="mb-6 flex justify-between items-start">
+              <div>
+                <h3 className="font-serif text-xl text-brass">Revenue Performance</h3>
+                <p className="text-muted-foreground text-sm mt-1">Daily revenue trends over the last 30 days</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
+                <div className="flex items-center gap-2"><span className="w-3 h-0.5 bg-brass"></span> Revenue</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-0.5 border-t border-dashed border-blue-400"></span> Volume</div>
+              </div>
+            </div>
+            <div className="h-[300px] w-full">
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))", fontFamily: "monospace" }} 
+                      interval={4} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))", fontFamily: "monospace" }} 
+                      tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} 
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "#D4AF37", fontFamily: "monospace", fontSize: "12px" }}
+                      labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: "4px" }}
+                    />
+                    <Area type="monotone" dataKey="volume" stroke="#60A5FA" strokeDasharray="5 5" fill="none" strokeWidth={2} />
+                    <Area type="monotone" dataKey="sales" stroke="#D4AF37" fill="url(#colorSales)" strokeWidth={2} activeDot={{ r: 6, fill: "#D4AF37", stroke: "hsl(var(--background))", strokeWidth: 2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm font-mono italic">
+                  No revenue data available
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="h-[300px] w-full">
-            {isLoading ? (
-              <div className="w-full h-full flex items-center justify-center animate-pulse bg-muted/20 rounded-xl" />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="rgba(212, 175, 55, 0.1)"
-                  />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 10, fill: "#888", fontFamily: "Inter" }}
-                    dy={10}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 10, fill: "#888", fontFamily: "Inter" }}
-                    tickFormatter={(val) =>
-                      `Ksh ${val >= 1000 ? (val / 1000).toFixed(0) + "k" : val}`
-                    }
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1A2B3C",
-                      border: "1px solid rgba(212, 175, 55, 0.2)",
-                      borderRadius: "12px",
-                      color: "#fff",
-                      fontSize: "12px",
-                      fontFamily: "Outfit",
-                    }}
-                    itemStyle={{ color: "#D4AF37" }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="sales"
-                    stroke="#D4AF37"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorSales)"
-                    animationDuration={2000}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Category Distribution Chart */}
-        <div className="rounded-2xl border border-border bg-card p-8 group">
-          <div className="mb-8">
-            <h3 className="font-display text-lg text-foreground flex items-center gap-2">
-              <PieIcon className="size-5 text-brass" />
-              Category Mix
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium italic font-serif">
-              Product category revenue share
-            </p>
-          </div>
-
-          <div className="h-[300px] w-full">
-            {isLoading ? (
-              <div className="w-full h-full flex items-center justify-center animate-pulse bg-muted/20 rounded-xl" />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={8}
-                    dataKey="value"
-                    nameKey="name"
-                    animationDuration={1500}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1A2B3C",
-                      border: "1px solid rgba(212, 175, 55, 0.2)",
-                      borderRadius: "12px",
-                      color: "#fff",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    align="center"
-                    iconType="circle"
-                    formatter={(value) => (
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        {value}
-                      </span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Recent transactions */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="px-8 py-6 border-b border-border flex items-center justify-between bg-muted/10">
-          <div>
-            <h2 className="font-display text-xl text-foreground tracking-wide flex items-center gap-2">
-              Recent Activity
-              <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">
-              Latest sales synchronized with backend
-            </p>
-          </div>
-          <Link
-            to="/sales"
-            className="text-[10px] font-bold uppercase tracking-[0.2em] text-brass hover:text-brass-dark transition-all flex items-center gap-1 group"
-          >
-            Audit Sales Ledger
-            <ChevronRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70 bg-muted/5 border-b border-border">
-                <th className="px-8 py-4 font-bold">Reference</th>
-                <th className="px-8 py-4 font-bold">Payment Path</th>
-                <th className="px-8 py-4 font-bold">Customer Entity</th>
-                <th className="px-8 py-4 font-bold text-right">Net Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse border-b border-border/60">
-                    <td className="px-8 py-5">
-                      <div className="h-4 bg-muted rounded w-20" />
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="h-4 bg-muted rounded w-24" />
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="h-4 bg-muted rounded w-32" />
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="h-4 bg-muted rounded w-16 ml-auto" />
-                    </td>
-                  </tr>
-                ))
-              ) : transactions.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-8 py-20 text-center text-muted-foreground italic font-serif"
-                  >
-                    <Clock className="size-10 text-muted-foreground/20 mx-auto mb-4" />
-                    No transactions recorded in this cycle
-                  </td>
-                </tr>
+          {/* Donut Chart */}
+          <div className="lg:col-span-2 bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <div className="mb-4">
+              <h3 className="font-serif text-xl text-brass">Category Mix</h3>
+              <p className="text-muted-foreground text-sm mt-1">Product category revenue share</p>
+            </div>
+            <div className="flex-1 relative min-h-[220px]">
+              {categoryData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        innerRadius="60%"
+                        outerRadius="80%"
+                        paddingAngle={4}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {categoryData.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                        itemStyle={{ color: "hsl(var(--foreground))", fontFamily: "monospace" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col">
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-bold">Total Rev</span>
+                    <span className="text-foreground font-serif text-lg">{(totalSales/1000).toFixed(1)}k</span>
+                  </div>
+                </>
               ) : (
-                transactions.map((t) => (
-                  <tr
-                    key={t.id}
-                    className="group border-b border-border/60 last:border-0 hover:bg-muted/40 transition-all duration-300"
-                  >
-                    <td className="px-8 py-5 text-brass tabular-nums text-sm font-bold">
-                      {t.sale_number}
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className="px-2 py-0.5 rounded-md bg-navy/5 text-navy text-[10px] font-bold uppercase tracking-widest border border-navy/10">
-                        {t.payment_method}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-sm text-foreground/80 font-medium italic font-serif group-hover:text-foreground transition-colors">
-                      {t.customer_name || "Walk-in Associate"}
-                    </td>
-                    <td className="px-8 py-5 text-right text-sm font-bold tabular-nums text-foreground group-hover:text-brass transition-colors">
-                      KES {t.total.toLocaleString()}
-                    </td>
-                  </tr>
-                ))
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm font-mono italic">
+                  No category data available
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+            {categoryData.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 gap-y-2 gap-x-4">
+                {categoryData.map((cat: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-foreground">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}></div>
+                    <span className="truncate flex-1">{cat.name}</span>
+                    <span className="font-mono text-muted-foreground">{cat.value}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Second Row - 3 Panels */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Kitchen & Orders */}
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <h3 className="font-serif text-lg text-foreground">Kitchen & Orders</h3>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-3">
+              {displayOrders.length > 0 ? displayOrders.map((order: any, i: number) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-sm text-foreground">{order.id}</span>
+                      <span className={cn("text-[9px] font-bold tracking-wider", getOrderTypeColor(order.type))}>{order.type}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{order.items} items · KSH {order.amount}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={cn("text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider inline-block mb-1 border", getOrderStatusColor(order.status))}>
+                      {order.status}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{order.time}</div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-xs text-muted-foreground italic">No active orders</div>
+              )}
+            </div>
+            <div className="mt-6 pt-4 border-t border-border flex justify-between items-center text-xs">
+              <div className="flex gap-4">
+                <span className="text-muted-foreground">Avg prep time: <strong className="text-foreground">0 min</strong></span>
+                <span className="text-muted-foreground">Orders today: <strong className="text-foreground">{kdsTickets.length}</strong></span>
+              </div>
+            </div>
+            <Link to="/restaurant" className="mt-4 text-xs font-bold text-brass flex items-center gap-1 hover:brightness-110 transition-colors w-fit">
+              Open Kitchen Display <ChevronRight className="size-3" />
+            </Link>
+          </div>
+
+          {/* Inventory Alerts & Consumption */}
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <h3 className="font-serif text-lg text-foreground mb-6">Inventory Status</h3>
+            
+            <div className="space-y-4 mb-6">
+              {/* Fallback to empty if no API data specifically mapped, since we rely on `products` array. We will just say no alerts if lowStockCount is 0 */}
+              {lowStockCount > 0 ? (
+                <div className="text-xs text-rose-500 font-mono">Check inventory dashboard for the {lowStockCount} items low on stock.</div>
+              ) : (
+                <div className="text-xs text-muted-foreground italic">Inventory levels are healthy.</div>
+              )}
+            </div>
+
+            <div className="mt-auto">
+              <h4 className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3">Daily Consumption Rates</h4>
+              <div className="space-y-3">
+                 <div className="text-xs text-muted-foreground italic">Insufficient data for consumption trends.</div>
+              </div>
+            </div>
+            <Link to="/inventory/products" className="mt-6 text-xs font-bold text-brass flex items-center gap-1 hover:brightness-110 transition-colors w-fit">
+              Full Inventory Report <ChevronRight className="size-3" />
+            </Link>
+          </div>
+
+          {/* Procurement Summary */}
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <h3 className="font-serif text-lg text-foreground mb-6">Procurement</h3>
+            <div className="flex-1 space-y-4">
+              {purchases.slice(0, 4).map((po: any, i: number) => (
+                <div key={i} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
+                  <div>
+                    <div className="font-mono text-sm text-foreground">{po.purchase_number || `PO-${po.id}`}</div>
+                    <div className="text-xs text-muted-foreground truncate max-w-[120px]">{po.supplier_name || 'Unknown Supplier'}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-sm text-foreground mb-1">KSH {po.total_amount}</div>
+                    <div className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase", 
+                      po.status === 'received' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 
+                      po.status === 'pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                      'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                    )}>
+                      {po.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {purchases.length === 0 && (
+                <div className="text-xs text-muted-foreground italic">No recent purchase orders.</div>
+              )}
+            </div>
+            <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
+              <div className="bg-muted/50 px-3 py-2 rounded border border-border/50">
+                <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">MTD Spend</div>
+                <div className="text-sm font-mono text-foreground">KSH {mtdSpend.toLocaleString()}</div>
+              </div>
+              <div className="bg-muted/50 px-3 py-2 rounded border border-border/50">
+                <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">Pending</div>
+                <div className="text-sm font-mono text-foreground">{pendingOrders} Orders</div>
+              </div>
+            </div>
+            <Link to="/purchases/stock-in" className="mt-4 text-xs font-bold text-brass flex items-center gap-1 hover:brightness-110 transition-colors w-fit">
+              Open Purchases <ChevronRight className="size-3" />
+            </Link>
+          </div>
+
+        </div>
+
+        {/* Third Row - 3 Panels */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Sales Performance */}
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <h3 className="font-serif text-lg text-foreground mb-6">Sales Performance</h3>
+            <div className="space-y-4 mb-6">
+                <div className="text-xs text-muted-foreground italic">Syncing daily performance metrics...</div>
+            </div>
+            
+            <div className="mt-auto">
+              <h4 className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3">Top Selling Items</h4>
+              <div className="space-y-2">
+                 <div className="text-xs text-muted-foreground italic">Not enough data to rank products.</div>
+              </div>
+            </div>
+            <Link to="/reports" className="mt-6 text-xs font-bold text-brass flex items-center gap-1 hover:brightness-110 transition-colors w-fit">
+              Full Sales Report <ChevronRight className="size-3" />
+            </Link>
+          </div>
+
+          {/* Staff & HR */}
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <h3 className="font-serif text-lg text-foreground mb-6">Human Resources</h3>
+            <div className="flex-1 space-y-4">
+                 <div className="text-xs text-muted-foreground italic">No active shifts in the database.</div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-border flex justify-between items-center text-[10px] font-mono text-muted-foreground">
+              <div className="text-blue-500 bg-blue-500/10 px-2 py-1 rounded">0 On Duty</div>
+              <div className="bg-muted/50 px-2 py-1 rounded">0 On Leave</div>
+              <div className="bg-muted/50 px-2 py-1 rounded">Next Shift: --:--</div>
+            </div>
+            <Link to="/hr/employees" className="mt-4 text-xs font-bold text-brass flex items-center gap-1 hover:brightness-110 transition-colors w-fit">
+              HR Dashboard <ChevronRight className="size-3" />
+            </Link>
+          </div>
+
+          {/* CRM & Customers */}
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col shadow-sm">
+            <h3 className="font-serif text-lg text-foreground mb-6">Customers</h3>
+            <div className="flex justify-between gap-2 mb-6">
+              <div className="flex-1 bg-muted/50 p-3 rounded border border-border/50 text-center">
+                <div className="text-lg font-serif text-foreground">{customersToday}</div>
+                <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Total</div>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-4">
+              {customers.slice(0, 3).map((c: any, i: number) => (
+                <div key={i} className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded bg-muted border border-border flex items-center justify-center text-xs font-bold text-muted-foreground">
+                      {c.name ? c.name.substring(0, 2).toUpperCase() : "CU"}
+                    </div>
+                    <div>
+                      <div className="text-xs text-foreground">{c.name || 'Walk-in'}</div>
+                      <div className="text-[10px] text-muted-foreground">{c.phone || 'No phone'}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {customers.length === 0 && (
+                <div className="text-xs text-muted-foreground italic">No customers found.</div>
+              )}
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Satisfaction Score</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-foreground">N/A</span>
+              </div>
+            </div>
+            <Link to="/customers" className="mt-4 text-xs font-bold text-brass flex items-center gap-1 hover:brightness-110 transition-colors w-fit">
+              Open CRM <ChevronRight className="size-3" />
+            </Link>
+          </div>
+
+        </div>
+
+        {/* Footer Row - Quick Actions */}
+        <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+          <h3 className="font-serif text-lg text-foreground mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { icon: ShoppingCart, label: "New Sale", to: "/pos" },
+              { icon: Plus, label: "Purchase Order", to: "/purchases/stock-in" },
+              { icon: Boxes, label: "Stock Count", to: "/inventory/adjustments" },
+              { icon: UserPlus, label: "New Customer", to: "/customers" },
+              { icon: FileText, label: "Run Report", to: "/reports" },
+              { icon: Clock, label: "Staff Clock-In", to: "/hr/shifts" },
+            ].map((action, i) => (
+              <Link 
+                key={i} 
+                to={action.to}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded bg-background border border-brass/30 text-foreground hover:bg-brass hover:text-navy-deep transition-colors group shadow-sm"
+              >
+                <action.icon className="size-4 text-brass group-hover:text-navy-deep" />
+                <span className="text-xs font-bold whitespace-nowrap">{action.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

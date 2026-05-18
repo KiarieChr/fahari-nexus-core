@@ -77,7 +77,13 @@ function PosPage() {
   const kotRef = useRef<HTMLDivElement>(null);
   const billRef = useRef<HTMLDivElement>(null);
   const { printElement } = usePrint();
-  const [activeSection, setActiveSection] = useState<PosSection>("general");
+  
+  // Read section from URL param (?section=bar / ?section=restaurant)
+  const initialSection = (typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("section") as PosSection | null
+    : null) ?? "general";
+  
+  const [activeSection, setActiveSection] = useState<PosSection>(initialSection);
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [tableNumber, setTableNumber] = useState("");
@@ -95,10 +101,20 @@ function PosPage() {
   const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null);
   const [isMpesaWaiting, setIsMpesaWaiting] = useState(false);
 
-  const { data, isLoading } = useProducts();
+  const { data, isLoading } = useProducts({ is_pos: true });
   const { data: catData } = useCategories();
-  const products = data?.results || [];
-  const categories = catData?.results || [];
+  
+  const products = useMemo(() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    return data.results || [];
+  }, [data]);
+
+  const categories = useMemo(() => {
+    if (!catData) return [];
+    if (Array.isArray(catData)) return catData;
+    return catData.results || [];
+  }, [catData]);
 
   const createSale = useCreateSale();
   const createKDSOrder = useCreateKDSOrder();
@@ -122,11 +138,8 @@ function PosPage() {
 
   // Determine available sections
   const availableSections = useMemo(() => {
-    const sections: PosSection[] = ["general"];
-    if (company?.enable_restaurant_mode) sections.push("restaurant");
-    if (company?.enable_bar_mode) sections.push("bar");
-    return sections;
-  }, [company]);
+    return ["general"] as PosSection[];
+  }, []);
 
   // Reset section if disabled
   useEffect(() => {
@@ -137,17 +150,23 @@ function PosPage() {
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      // 1. Filter out zero stock
-      if (p.stock_quantity <= 0) return false;
+      // Filter out items with no stock (but keep if stock_quantity is undefined/null — show all)
+      const stock = p.product_type === 'menu_item' ? Number(p.portions_available ?? 0) : Number(p.stock_quantity ?? 0);
+      const isService = p.product_type === 'service';
+      const isMenuItem = p.product_type === 'menu_item';
+      const allowNegative = invSettings?.allow_negative_inventory;
+
+      if (stock <= 0 && !isService && !isMenuItem && !allowNegative) return false;
 
       const matchesSearch =
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase());
+        (p.sku || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-      const categoryType = p.category_type || "general";
+      // Products with null category_type default to 'general'
+      const categoryType = (p.category_type as string | null) || "general";
       const matchesSection = categoryType === activeSection;
 
-      // 2. Filter by category tab
+      // Filter by category tab
       const matchesCategory = activeCategory === "all" || p.category_name === activeCategory;
 
       return matchesSearch && matchesSection && matchesCategory;
@@ -450,7 +469,13 @@ function PosPage() {
                     </div>
                   )}
                   <div className="absolute top-2 right-2 px-2 py-1 rounded bg-navy/80 text-[10px] font-display text-brass-light backdrop-blur-sm">
-                    {p.stock_quantity} available
+                    {p.product_type === 'service' ? (
+                      "Unlimited"
+                    ) : p.product_type === 'menu_item' ? (
+                      `${p.portions_available ?? 0} portions`
+                    ) : (
+                      `${p.stock_quantity} available`
+                    )}
                   </div>
                 </div>
                 <div className="text-sm font-semibold text-foreground truncate group-hover:text-brass transition-colors">

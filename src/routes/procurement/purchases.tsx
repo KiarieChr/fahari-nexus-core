@@ -17,7 +17,7 @@ import {
   Building2,
   Tag
 } from "lucide-react";
-import { usePurchases, useCompany } from "@/lib/api-hooks";
+import { usePurchases, useCompany, useInventorySettings } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { 
@@ -35,19 +35,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleReceiveDialog } from "@/components/inventory/SimpleReceiveDialog";
 import { GRNCreateDialog } from "@/components/procurement/GRNCreateDialog";
-
+ 
 export const Route = createFileRoute("/procurement/purchases")({
   component: PurchasesPage,
 });
-
+ 
 function PurchasesPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isGRNOpen, setIsGRNOpen] = useState(false);
   const { data: purchasesData, isLoading } = usePurchases();
   const { data: company } = useCompany();
-
-  const enableComplex = company?.enable_complex_procurement ?? true;
+  const { data: settings } = useInventorySettings();
+ 
+  const enableComplex = settings ? !settings.enable_simple_stockin : false;
   const purchases = purchasesData?.results || [];
 
   const getStatusColor = (status: string) => {
@@ -75,7 +76,7 @@ function PurchasesPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#030711] min-h-screen text-white">
+    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#0A0D14] min-h-screen text-white">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">

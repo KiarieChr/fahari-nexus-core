@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useCategories } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
+import { CategoryFormSheet } from "@/components/inventory/CategoryFormSheet";
 
 export const Route = createFileRoute("/inventory/categories")({
   head: () => ({
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/inventory/categories")({
 
 function CategoriesPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const { data, isLoading } = useCategories();
   const categories = data?.results || [];
 
@@ -63,7 +65,10 @@ function CategoriesPage() {
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="h-10 px-5 rounded-md bg-navy text-brass-light hover:bg-navy/90 transition-all flex items-center gap-2 text-xs font-medium uppercase tracking-widest border border-brass/20 shadow-lg">
+          <button 
+            onClick={() => setIsFormOpen(true)}
+            className="h-10 px-5 rounded-md bg-navy text-brass-light hover:bg-navy/90 transition-all flex items-center gap-2 text-xs font-medium uppercase tracking-widest border border-brass/20 shadow-lg"
+          >
             <Plus className="size-3.5" />
             New Category
           </button>
@@ -201,6 +206,7 @@ function CategoriesPage() {
           ))
         )}
       </div>
+      <CategoryFormSheet isOpen={isFormOpen} onOpenChange={setIsFormOpen} />
     </div>
   );
 }

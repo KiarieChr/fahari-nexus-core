@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { 
   Dialog, 
   DialogContent, 
@@ -32,7 +33,8 @@ import {
   ArrowRight, 
   MapPin, 
   ClipboardCheck,
-  AlertCircle
+  AlertCircle,
+  ChevronRight
 } from "lucide-react";
 import { useBranches, useProducts, useCreateTransfer } from "@/lib/api-hooks";
 import { toast } from "sonner";
@@ -54,7 +56,7 @@ export function StockTransferRequestDialog({ open, onOpenChange }: StockTransfer
   const { data: productsData } = useProducts();
   const createMutation = useCreateTransfer();
 
-  const branches = branchesData?.results || [];
+  const branches = Array.isArray(branchesData) ? branchesData : (branchesData?.results || []);
   const products = productsData?.results || [];
 
   const filteredProducts = products.filter((p: any) => 
@@ -115,7 +117,7 @@ export function StockTransferRequestDialog({ open, onOpenChange }: StockTransfer
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl bg-[#030711] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
+      <DialogContent className="max-w-4xl bg-[#0A0D14] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
         <DialogHeader className="p-8 border-b border-white/5 bg-white/[0.02]">
           <div className="flex items-center gap-4">
              <div className="size-12 rounded-2xl bg-brass/10 border border-brass/20 flex items-center justify-center text-brass">

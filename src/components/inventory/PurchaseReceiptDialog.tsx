@@ -81,7 +81,7 @@ export function PurchaseReceiptDialog({ open, onOpenChange, purchase }: Purchase
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl bg-[#030711] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
+      <DialogContent className="max-w-5xl bg-[#0A0D14] border-white/10 text-white p-0 overflow-hidden rounded-3xl shadow-2xl">
         <DialogHeader className="p-8 border-b border-white/5 bg-white/[0.02]">
           <div className="flex items-center gap-4">
              <div className="size-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">

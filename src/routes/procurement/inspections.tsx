@@ -45,7 +45,7 @@ function InspectionsPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#030711] min-h-screen text-white">
+    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#0A0D14] min-h-screen text-white">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">

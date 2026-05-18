@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   Package,
   Search,
@@ -19,6 +20,8 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
+  Zap,
+  X,
 } from "lucide-react";
 import {
   useProducts,
@@ -26,9 +29,16 @@ import {
   useProductBatches,
   Product,
   useExportExcel,
+  useRecipeForProduct,
+  useCreateRecipe,
+  useUpdateRecipe,
+  useAddRecipeIngredient,
+  useRemoveRecipeIngredient,
+  Recipe,
+  RecipeIngredientDetail,
 } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,6 +52,11 @@ import {
 } from "@/components/ui/table";
 import { ProductFormSheet } from "@/components/inventory/ProductFormSheet";
 import { BulkUploadDialog } from "@/components/inventory/BulkUploadDialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +74,7 @@ export const Route = createFileRoute("/inventory/products")({
   component: ProductsPage,
 });
 
-type SectionFilter = "all" | "general" | "restaurant" | "bar";
+type SectionFilter = "all" | "general" | "restaurant" | "bar" | "service";
 
 function ProductDetailsSheet({
   productId,
@@ -75,7 +90,14 @@ function ProductDetailsSheet({
   setIsFormOpen: (open: boolean) => void;
 }) {
   const { data: product, isLoading: isLoadingProduct } = useProductDetail(productId);
-  const { data: batches, isLoading: isLoadingBatches } = useProductBatches(productId);
+  const { data: batchesData, isLoading: isLoadingBatches } = useProductBatches(productId);
+
+  const batches = useMemo(() => {
+    if (!batchesData) return [];
+    if (Array.isArray(batchesData)) return batchesData;
+    const anyData = batchesData as any;
+    return anyData.results || [];
+  }, [batchesData]);
 
   const formatKES = (val: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -102,6 +124,10 @@ function ProductDetailsSheet({
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl border-l border-brass/20 bg-[#0A0D14] text-foreground p-0 overflow-hidden flex flex-col">
+        <div className="sr-only">
+          <SheetTitle>Product Details</SheetTitle>
+          <SheetDescription>View detailed information and batch history for this product.</SheetDescription>
+        </div>
         {isLoadingProduct ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 className="size-8 text-brass animate-spin" />
@@ -109,8 +135,8 @@ function ProductDetailsSheet({
         ) : product ? (
           <>
             <div className="h-48 bg-muted/20 relative border-b border-white/5">
-              {product.image ? (
-                <img src={product.image} className="w-full h-full object-cover" />
+              {getFullImageUrl((product as any).image_url || product.image) ? (
+                <img src={getFullImageUrl((product as any).image_url || product.image)!} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center opacity-10">
                   <Package className="size-20 text-white" />
@@ -246,7 +272,7 @@ function ProductDetailsSheet({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {batches.map((batch) => (
+                          {batches.map((batch: any) => (
                             <TableRow
                               key={batch.id}
                               className="border-white/5 hover:bg-white/[0.02] transition-colors"
@@ -324,6 +350,13 @@ function ProductDetailsSheet({
                     </div>
                   )}
                 </section>
+
+                {product.product_type === "menu_item" && (
+                  <>
+                    <Separator className="bg-white/5" />
+                    <RecipeManagerSection productId={product.id} sellingPrice={product.selling_price} />
+                  </>
+                )}
               </div>
             </ScrollArea>
 
@@ -346,6 +379,55 @@ function ProductDetailsSheet({
   );
 }
 
+const getFullImageUrl = (src: string | null | undefined): string | null => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:")) {
+    return src;
+  }
+  let path = src;
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
+  if (!path.startsWith("/media/")) {
+    path = "/media" + path;
+  }
+  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+  const base = apiBase.endsWith("/") ? apiBase.slice(0, -1) : apiBase;
+  return `${base}${path}`;
+};
+
+function ProductCardImage({ src, alt, categoryType }: { src: string | null; alt: string; categoryType: string }) {
+  const [error, setError] = useState(false);
+  const fullUrl = getFullImageUrl(src);
+
+  // If there's an error loading or no src is available, render the appropriate high-fidelity placeholder
+  if (!fullUrl || error) {
+    return (
+      <div className="w-full h-full grid place-items-center text-muted-foreground/40 bg-muted/30">
+        {categoryType === "restaurant" ? (
+          <Utensils className="size-12 opacity-10" />
+        ) : categoryType === "bar" ? (
+          <Wine className="size-12 opacity-10" />
+        ) : (
+          <ImageIcon className="size-12 opacity-10" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={fullUrl}
+      alt={alt}
+      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      onError={() => {
+        console.warn(`Failed to load product image: ${fullUrl}. Falling back to default placeholder.`);
+        setError(true);
+      }}
+    />
+  );
+}
+
 function ProductsPage() {
   const [activeSection, setActiveSection] = useState<SectionFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -357,7 +439,12 @@ function ProductsPage() {
 
   const { data, isLoading } = useProducts();
   const exportExcel = useExportExcel();
-  const products = data?.results || [];
+
+  const products = useMemo(() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    return data.results || [];
+  }, [data]);
 
   const filteredProducts = useMemo(() => {
     return (products || []).filter((p: any) => {
@@ -369,8 +456,11 @@ function ProductsPage() {
 
       const matchesSearch = name.includes(search) || sku.includes(search) || cat.includes(search);
 
-      const categoryType = p.category_type || "general";
-      const matchesSection = activeSection === "all" || categoryType === activeSection;
+      // Products with null category_type default to 'general'
+      const categoryType = (p.category_type as string | null) || "general";
+      const matchesSection = 
+        activeSection === "all" || 
+        (activeSection === "service" ? p.product_type === "service" : categoryType === activeSection && p.product_type !== "service");
 
       return matchesSearch && matchesSection;
     });
@@ -378,6 +468,8 @@ function ProductsPage() {
 
   const stats = useMemo(() => {
     const list = products || [];
+    // Bar category names to detect bar items when category_type isn't set
+    const BAR_CATEGORY_NAMES = ["beers", "wine", "cocktails", "spirits", "bar", "drinks", "whiskey", "whisky", "beer", "wine & cocktails"];
     return {
       total: list.length,
       value: list.reduce((acc, p) => {
@@ -385,8 +477,16 @@ function ProductsPage() {
         const qty = Number(p.stock_quantity) || 0;
         return acc + price * qty;
       }, 0),
-      restaurant: list.filter((p) => p.category_type === "restaurant").length,
-      bar: list.filter((p) => p.category_type === "bar").length,
+      restaurant: list.filter((p: any) => {
+        if (p.category_type === "restaurant") return true;
+        if (p.product_type === "menu_item") return true;
+        return false;
+      }).length,
+      bar: list.filter((p: any) => {
+        if (p.category_type === "bar") return true;
+        const catName = (p.category_name || "").toLowerCase();
+        return BAR_CATEGORY_NAMES.some(b => catName.includes(b));
+      }).length,
     };
   }, [products]);
 
@@ -502,7 +602,7 @@ function ProductsPage() {
 
       <div className="flex flex-col gap-6 mb-8">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(["all", "general", "restaurant", "bar"] as const).map((s) => (
+          {(["all", "general", "restaurant", "bar", "service"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setActiveSection(s)}
@@ -519,7 +619,9 @@ function ProductsPage() {
                   ? "Retail Store"
                   : s === "restaurant"
                     ? "Restaurant / Kitchen"
-                    : "Bar & Drinks"}
+                    : s === "bar" 
+                      ? "Bar & Drinks" 
+                      : "Services"}
             </button>
           ))}
         </div>
@@ -570,35 +672,26 @@ function ProductsPage() {
               className="group relative rounded-2xl border border-border bg-card overflow-hidden hover:border-brass/40 hover:shadow-xl hover:shadow-brass/5 transition-all cursor-pointer"
             >
               <div className="aspect-[4/3] bg-muted/30 relative overflow-hidden border-b border-border">
-                {product.image ? (
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-full grid place-items-center text-muted-foreground/40">
-                    {product.category_type === "restaurant" ? (
-                      <Utensils className="size-12 opacity-10" />
-                    ) : product.category_type === "bar" ? (
-                      <Wine className="size-12 opacity-10" />
-                    ) : (
-                      <ImageIcon className="size-12 opacity-10" />
-                    )}
-                  </div>
-                )}
+                <ProductCardImage
+                  src={product.image_url || product.image}
+                  alt={product.name}
+                  categoryType={product.category_type}
+                />
 
                 <div
                   className={cn(
-                    "absolute top-3 left-3 px-2 py-1 rounded text-[8px] font-display uppercase tracking-[0.15em] backdrop-blur-md border",
-                    product.category_type === "restaurant"
-                      ? "bg-orange-950/80 text-orange-400 border-orange-500/30"
-                      : product.category_type === "bar"
-                        ? "bg-purple-950/80 text-purple-400 border-purple-500/30"
-                        : "bg-navy/80 text-brass-light border-brass/30",
+                    "absolute top-3 left-3 px-2 py-1 rounded text-[8px] font-display uppercase tracking-[0.15em] backdrop-blur-md border flex items-center gap-1",
+                    product.product_type === "service"
+                      ? "bg-blue-950/80 text-blue-400 border-blue-500/30"
+                      : product.category_type === "restaurant"
+                        ? "bg-orange-950/80 text-orange-400 border-orange-500/30"
+                        : product.category_type === "bar"
+                          ? "bg-purple-950/80 text-purple-400 border-purple-500/30"
+                          : "bg-navy/80 text-brass-light border-brass/30",
                   )}
                 >
-                  {product.category_type || "Retail"}
+                  {product.product_type === "service" && <Zap className="size-2.5" />}
+                  {product.product_type === "service" ? "Service" : (product.category_type || "Retail")}
                 </div>
 
                 <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -634,13 +727,19 @@ function ProductsPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] uppercase tracking-tighter text-muted-foreground font-medium">
-                      {product.category_type === "restaurant" ? "Available" : "In Stock"}
+                      {product.product_type === "service" ? "Availability" : product.category_type === "restaurant" ? "Available" : "In Stock"}
                     </div>
-                    <div
-                      className={`text-lg font-display tabular-nums ${product.stock_quantity <= 5 ? "text-rose-500" : "text-emerald-500"}`}
-                    >
-                      {product.stock_quantity}
-                    </div>
+                    {product.product_type === "service" ? (
+                      <div className="text-lg font-display text-blue-400 tabular-nums">
+                        Unlimited
+                      </div>
+                    ) : (
+                      <div
+                        className={`text-lg font-display tabular-nums ${product.stock_quantity <= 5 ? "text-rose-500" : "text-emerald-500"}`}
+                      >
+                        {product.stock_quantity}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -661,5 +760,289 @@ function ProductsPage() {
 
       <BulkUploadDialog isOpen={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen} />
     </div>
+  );
+}
+
+// ==========================================
+// 🍳 RECIPE & BOM DASHBOARD COMPONENT
+// ==========================================
+interface RecipeManagerSectionProps {
+  productId: number;
+  sellingPrice: number;
+}
+
+function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionProps) {
+  const { data: recipe, isLoading: loadingRecipe } = useRecipeForProduct(productId);
+  const { data: productsData } = useProducts();
+  
+  const createRecipe = useCreateRecipe();
+  const updateRecipe = useUpdateRecipe();
+  const addIngredient = useAddRecipeIngredient();
+  const removeIngredient = useRemoveRecipeIngredient();
+
+  const [isEditingSteps, setIsEditingSteps] = useState(false);
+  const [instructionsText, setInstructionsText] = useState("");
+  const [prepTime, setPrepTime] = useState<number>(15);
+
+  const [selectedIngredientId, setSelectedIngredientId] = useState<string>("");
+  const [quantity, setQuantity] = useState<string>("0.1");
+  const [wastage, setWastage] = useState<string>("0");
+  const [uom, setUom] = useState<string>("kg");
+
+  // Sync details when recipe loads
+  useEffect(() => {
+    if (recipe) {
+      setInstructionsText(recipe.instructions || "");
+      setPrepTime(recipe.preparation_time_minutes || 15);
+    }
+  }, [recipe]);
+
+  const rawMaterials = useMemo(() => {
+    if (!productsData) return [];
+    const prods = Array.isArray(productsData) ? productsData : (productsData as any).results || [];
+    return prods.filter((p: any) => p.product_type === "raw_material");
+  }, [productsData]);
+
+  if (loadingRecipe) {
+    return (
+      <div className="py-6 flex items-center justify-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
+        <Loader2 className="size-4 animate-spin text-brass" />
+        Analyzing Recipe Book...
+      </div>
+    );
+  }
+
+  const handleCreateRecipe = async () => {
+    try {
+      await createRecipe.mutateAsync({
+        menu_item: productId,
+        instructions: "Standard preparation instructions.",
+        preparation_time_minutes: 15,
+      });
+      toast.success("Recipe card created! Add your ingredients now.");
+    } catch (err) {
+      toast.error("Failed to create recipe card.");
+    }
+  };
+
+  const handleSaveRecipeDetails = async () => {
+    if (!recipe) return;
+    try {
+      await updateRecipe.mutateAsync({
+        id: recipe.id,
+        data: {
+          instructions: instructionsText,
+          preparation_time_minutes: Number(prepTime),
+        },
+      });
+      setIsEditingSteps(false);
+      toast.success("Recipe instructions updated!");
+    } catch (err) {
+      toast.error("Failed to save recipe instructions.");
+    }
+  };
+
+  const handleAddIngredient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recipe || !selectedIngredientId) return;
+    try {
+      await addIngredient.mutateAsync({
+        recipe: recipe.id,
+        ingredient: Number(selectedIngredientId),
+        quantity: Number(quantity),
+        unit_of_measure: uom,
+        wastage_allowance_pct: Number(wastage),
+      });
+      setSelectedIngredientId("");
+      setQuantity("0.1");
+      setWastage("0");
+      toast.success("Ingredient added to recipe!");
+    } catch (err) {
+      toast.error("Failed to add ingredient.");
+    }
+  };
+
+  const handleRemoveIngredient = async (id: number) => {
+    try {
+      await removeIngredient.mutateAsync(id);
+      toast.success("Ingredient removed from recipe.");
+    } catch (err) {
+      toast.error("Failed to remove ingredient.");
+    }
+  };
+
+  if (!recipe) {
+    return (
+      <section className="p-6 rounded-2xl bg-brass/5 border border-brass/25 text-center space-y-4 my-6">
+        <Utensils className="size-10 text-brass mx-auto" />
+        <div>
+          <h4 className="font-bold text-white text-sm">No Recipe Linked</h4>
+          <p className="text-[10px] text-muted-foreground mt-1 max-w-sm mx-auto">
+            This menu item does not have a recipe card yet. Create one to enable ingredient deduction and food cost analysis.
+          </p>
+        </div>
+        <Button onClick={handleCreateRecipe} className="bg-brass text-navy font-bold uppercase tracking-widest text-[9px] hover:bg-brass-light h-9 px-6 rounded-xl">
+          Build Recipe Card
+        </Button>
+      </section>
+    );
+  }
+
+  // Cost calculations
+  const baseCost = recipe.base_cost || 0;
+  const foodCostPct = recipe.food_cost_percentage || 0;
+
+  return (
+    <section className="space-y-6 my-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+          <Utensils className="size-3.5 text-brass" />
+          Recipe & Bill of Materials (BOM)
+        </h3>
+        <Badge className={cn("text-[9px] uppercase font-bold tracking-widest px-2.5 py-0.5", 
+          foodCostPct <= 30 ? "bg-emerald-500/20 text-emerald-400" :
+          foodCostPct <= 45 ? "bg-amber-500/20 text-amber-400" : "bg-rose-500/20 text-rose-400"
+        )}>
+          {foodCostPct.toFixed(1)}% Food Cost
+        </Badge>
+      </div>
+
+      {/* Dynamic Metrics Grid */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 shadow-inner">
+          <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Recipe Base Cost</p>
+          <p className="text-xs font-display text-white">{new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 0 }).format(baseCost)}</p>
+        </div>
+        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 shadow-inner">
+          <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Prep Time</p>
+          <p className="text-xs font-display text-white">{prepTime} mins</p>
+        </div>
+        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 shadow-inner">
+          <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Profit Margin</p>
+          <p className="text-xs font-display text-emerald-400">{Math.max(0, 100 - foodCostPct).toFixed(1)}%</p>
+        </div>
+      </div>
+
+      {/* Ingredients List */}
+      <div className="space-y-3">
+        <h4 className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Raw Ingredients List</h4>
+        {recipe.ingredients && recipe.ingredients.length > 0 ? (
+          <div className="rounded-xl border border-white/5 bg-white/[0.01] overflow-hidden">
+            <Table>
+              <TableHeader className="bg-white/[0.03]">
+                <TableRow className="border-white/5 hover:bg-transparent">
+                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-muted-foreground">Ingredient</TableHead>
+                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-right text-muted-foreground">Portion Qty</TableHead>
+                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-right text-muted-foreground">Wastage %</TableHead>
+                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-right text-muted-foreground">Cost</TableHead>
+                  <TableHead className="h-8 w-8"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recipe.ingredients.map((ing) => (
+                  <TableRow key={ing.id} className="border-white/5 hover:bg-white/[0.01] transition-colors">
+                    <TableCell className="py-2.5">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-xs text-white">{ing.ingredient_name}</span>
+                        <span className="text-[8px] font-mono text-muted-foreground uppercase">{ing.ingredient_sku}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right py-2.5 text-xs text-white font-mono">{ing.quantity} {ing.unit_of_measure}</TableCell>
+                    <TableCell className="text-right py-2.5 text-xs text-muted-foreground font-mono">{ing.wastage_allowance_pct}%</TableCell>
+                    <TableCell className="text-right py-2.5 text-xs text-brass font-mono">
+                      {new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 0 }).format((ing.ingredient_cost || 0) * ing.quantity * (1 + ing.wastage_allowance_pct / 100))}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-center">
+                      <button onClick={() => handleRemoveIngredient(ing.id)} className="text-muted-foreground hover:text-rose-500 transition-colors p-1">
+                        <X className="size-3.5" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="py-8 text-center rounded-xl border border-dashed border-white/5 bg-white/[0.01]">
+            <Layers className="size-6 text-muted-foreground/30 mx-auto mb-2" />
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">No Ingredients Configured</p>
+          </div>
+        )}
+      </div>
+
+      {/* Add Ingredient Form */}
+      <form onSubmit={handleAddIngredient} className="p-4 rounded-xl border border-white/5 bg-white/[0.01] space-y-4">
+        <h4 className="text-[9px] uppercase tracking-widest text-brass font-bold">Add Ingredient to recipe</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5 col-span-2">
+            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Select Ingredient</Label>
+            <select value={selectedIngredientId} onChange={(e: any) => setSelectedIngredientId(e.target.value)} className="w-full bg-[#0A0D14] border border-white/10 rounded-xl h-10 px-3 text-xs text-white outline-none focus:border-brass/50">
+              <option value="">-- Choose Ingredient --</option>
+              {rawMaterials.map((mat: any) => (
+                <option key={mat.id} value={mat.id.toString()}>
+                  {mat.name} ({mat.sku}) - KES {mat.cost_price}/unit
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Quantity Needed</Label>
+            <Input type="number" step="any" value={quantity} onChange={(e: any) => setQuantity(e.target.value)} className="bg-[#0A0D14] border border-white/10 rounded-xl h-10 text-xs text-white" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Unit of measure</Label>
+            <select value={uom} onChange={(e: any) => setUom(e.target.value)} className="w-full bg-[#0A0D14] border border-white/10 rounded-xl h-10 px-3 text-xs text-white outline-none focus:border-brass/50">
+              <option value="kg">Kilograms (Kg)</option>
+              <option value="l">Litres (L)</option>
+              <option value="g">Grams (g)</option>
+              <option value="ml">Millilitres (ml)</option>
+              <option value="pcs">Pieces (pcs)</option>
+            </select>
+          </div>
+          <div className="space-y-1.5 col-span-2">
+            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Expectant Wastage %</Label>
+            <Input type="number" step="any" value={wastage} onChange={(e: any) => setWastage(e.target.value)} className="bg-[#0A0D14] border border-white/10 rounded-xl h-10 text-xs text-white" />
+          </div>
+        </div>
+        <Button type="submit" disabled={!selectedIngredientId} className="w-full bg-brass text-navy font-bold uppercase tracking-widest text-[9px] hover:bg-brass-light h-10 rounded-xl">
+          Add Ingredient
+        </Button>
+      </form>
+
+      {/* Instructions Section */}
+      <div className="p-4 rounded-xl border border-white/5 bg-white/[0.01] space-y-3">
+        <div className="flex justify-between items-center">
+          <h4 className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Preparation steps</h4>
+          <button type="button" onClick={() => {
+            if (isEditingSteps) {
+              handleSaveRecipeDetails();
+            } else {
+              setIsEditingSteps(true);
+            }
+          }} className="text-[9px] font-bold uppercase tracking-widest text-brass hover:text-brass-light transition-colors">
+            {isEditingSteps ? "Save Steps" : "Edit Steps"}
+          </button>
+        </div>
+
+        {isEditingSteps ? (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Prep time (minutes)</Label>
+              <Input type="number" value={prepTime} onChange={(e: any) => setPrepTime(Number(e.target.value))} className="bg-[#0A0D14] border border-white/10 rounded-xl h-10 text-xs text-white" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Instructions</Label>
+              <Textarea value={instructionsText} onChange={(e: any) => setInstructionsText(e.target.value)} className="bg-[#0A0D14] border border-white/10 rounded-xl min-h-[80px] text-xs text-white" />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-white/80 leading-relaxed font-serif italic">
+              "{recipe.instructions || "No preparation steps documented yet."}"
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

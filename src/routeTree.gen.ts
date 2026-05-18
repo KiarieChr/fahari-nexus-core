@@ -22,6 +22,8 @@ import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as CompanyRouteImport } from './routes/company'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SalesIndexRouteImport } from './routes/sales.index'
+import { Route as SettingsUsersRouteImport } from './routes/settings_.users'
+import { Route as SettingsRolesRouteImport } from './routes/settings_.roles'
 import { Route as SalesSummariesRouteImport } from './routes/sales.summaries'
 import { Route as SalesSettingsRouteImport } from './routes/sales.settings'
 import { Route as SalesDashboardRouteImport } from './routes/sales.dashboard'
@@ -33,6 +35,7 @@ import { Route as ProcurementPurchasesRouteImport } from './routes/procurement/p
 import { Route as ProcurementInspectionsRouteImport } from './routes/procurement/inspections'
 import { Route as ProcurementGrnsRouteImport } from './routes/procurement/grns'
 import { Route as InventoryTransfersRouteImport } from './routes/inventory/transfers'
+import { Route as InventorySettingsRouteImport } from './routes/inventory/settings'
 import { Route as InventoryProductsRouteImport } from './routes/inventory/products'
 import { Route as InventoryCategoriesRouteImport } from './routes/inventory/categories'
 import { Route as InventoryBatchesRouteImport } from './routes/inventory/batches'
@@ -110,6 +113,16 @@ const SalesIndexRoute = SalesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SalesRoute,
 } as any)
+const SettingsUsersRoute = SettingsUsersRouteImport.update({
+  id: '/settings_/users',
+  path: '/settings/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRolesRoute = SettingsRolesRouteImport.update({
+  id: '/settings_/roles',
+  path: '/settings/roles',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SalesSummariesRoute = SalesSummariesRouteImport.update({
   id: '/summaries',
   path: '/summaries',
@@ -163,6 +176,11 @@ const ProcurementGrnsRoute = ProcurementGrnsRouteImport.update({
 const InventoryTransfersRoute = InventoryTransfersRouteImport.update({
   id: '/inventory/transfers',
   path: '/inventory/transfers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventorySettingsRoute = InventorySettingsRouteImport.update({
+  id: '/inventory/settings',
+  path: '/inventory/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryProductsRoute = InventoryProductsRouteImport.update({
@@ -245,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/inventory/batches': typeof InventoryBatchesRoute
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/settings': typeof InventorySettingsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
   '/procurement/grns': typeof ProcurementGrnsRoute
   '/procurement/inspections': typeof ProcurementInspectionsRoute
@@ -256,6 +275,8 @@ export interface FileRoutesByFullPath {
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
+  '/settings/roles': typeof SettingsRolesRoute
+  '/settings/users': typeof SettingsUsersRoute
   '/sales/': typeof SalesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -281,6 +302,7 @@ export interface FileRoutesByTo {
   '/inventory/batches': typeof InventoryBatchesRoute
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/settings': typeof InventorySettingsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
   '/procurement/grns': typeof ProcurementGrnsRoute
   '/procurement/inspections': typeof ProcurementInspectionsRoute
@@ -292,6 +314,8 @@ export interface FileRoutesByTo {
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
+  '/settings/roles': typeof SettingsRolesRoute
+  '/settings/users': typeof SettingsUsersRoute
   '/sales': typeof SalesIndexRoute
 }
 export interface FileRoutesById {
@@ -319,6 +343,7 @@ export interface FileRoutesById {
   '/inventory/batches': typeof InventoryBatchesRoute
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/settings': typeof InventorySettingsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
   '/procurement/grns': typeof ProcurementGrnsRoute
   '/procurement/inspections': typeof ProcurementInspectionsRoute
@@ -330,6 +355,8 @@ export interface FileRoutesById {
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
+  '/settings_/roles': typeof SettingsRolesRoute
+  '/settings_/users': typeof SettingsUsersRoute
   '/sales/': typeof SalesIndexRoute
 }
 export interface FileRouteTypes {
@@ -358,6 +385,7 @@ export interface FileRouteTypes {
     | '/inventory/batches'
     | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/settings'
     | '/inventory/transfers'
     | '/procurement/grns'
     | '/procurement/inspections'
@@ -369,6 +397,8 @@ export interface FileRouteTypes {
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
+    | '/settings/roles'
+    | '/settings/users'
     | '/sales/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -394,6 +424,7 @@ export interface FileRouteTypes {
     | '/inventory/batches'
     | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/settings'
     | '/inventory/transfers'
     | '/procurement/grns'
     | '/procurement/inspections'
@@ -405,6 +436,8 @@ export interface FileRouteTypes {
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
+    | '/settings/roles'
+    | '/settings/users'
     | '/sales'
   id:
     | '__root__'
@@ -431,6 +464,7 @@ export interface FileRouteTypes {
     | '/inventory/batches'
     | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/settings'
     | '/inventory/transfers'
     | '/procurement/grns'
     | '/procurement/inspections'
@@ -442,6 +476,8 @@ export interface FileRouteTypes {
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
+    | '/settings_/roles'
+    | '/settings_/users'
     | '/sales/'
   fileRoutesById: FileRoutesById
 }
@@ -469,6 +505,7 @@ export interface RootRouteChildren {
   InventoryBatchesRoute: typeof InventoryBatchesRoute
   InventoryCategoriesRoute: typeof InventoryCategoriesRoute
   InventoryProductsRoute: typeof InventoryProductsRoute
+  InventorySettingsRoute: typeof InventorySettingsRoute
   InventoryTransfersRoute: typeof InventoryTransfersRoute
   ProcurementGrnsRoute: typeof ProcurementGrnsRoute
   ProcurementInspectionsRoute: typeof ProcurementInspectionsRoute
@@ -477,6 +514,8 @@ export interface RootRouteChildren {
   PurchasesStockInRoute: typeof PurchasesStockInRoute
   PurchasesSuppliersRoute: typeof PurchasesSuppliersRoute
   QuoteTokenRoute: typeof QuoteTokenRoute
+  SettingsRolesRoute: typeof SettingsRolesRoute
+  SettingsUsersRoute: typeof SettingsUsersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -572,6 +611,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SalesIndexRouteImport
       parentRoute: typeof SalesRoute
     }
+    '/settings_/users': {
+      id: '/settings_/users'
+      path: '/settings/users'
+      fullPath: '/settings/users'
+      preLoaderRoute: typeof SettingsUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings_/roles': {
+      id: '/settings_/roles'
+      path: '/settings/roles'
+      fullPath: '/settings/roles'
+      preLoaderRoute: typeof SettingsRolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sales/summaries': {
       id: '/sales/summaries'
       path: '/summaries'
@@ -647,6 +700,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory/transfers'
       fullPath: '/inventory/transfers'
       preLoaderRoute: typeof InventoryTransfersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/settings': {
+      id: '/inventory/settings'
+      path: '/inventory/settings'
+      fullPath: '/inventory/settings'
+      preLoaderRoute: typeof InventorySettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory/products': {
@@ -769,6 +829,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryBatchesRoute: InventoryBatchesRoute,
   InventoryCategoriesRoute: InventoryCategoriesRoute,
   InventoryProductsRoute: InventoryProductsRoute,
+  InventorySettingsRoute: InventorySettingsRoute,
   InventoryTransfersRoute: InventoryTransfersRoute,
   ProcurementGrnsRoute: ProcurementGrnsRoute,
   ProcurementInspectionsRoute: ProcurementInspectionsRoute,
@@ -777,16 +838,9 @@ const rootRouteChildren: RootRouteChildren = {
   PurchasesStockInRoute: PurchasesStockInRoute,
   PurchasesSuppliersRoute: PurchasesSuppliersRoute,
   QuoteTokenRoute: QuoteTokenRoute,
+  SettingsRolesRoute: SettingsRolesRoute,
+  SettingsUsersRoute: SettingsUsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

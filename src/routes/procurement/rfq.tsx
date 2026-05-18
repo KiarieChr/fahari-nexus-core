@@ -17,10 +17,12 @@ import {
   Users,
   ChevronRight,
   ClipboardList,
-  Trophy
+  Trophy,
+  Link2
 } from "lucide-react";
 import { useRFQs, useQuotations } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { 
   Card, 
   CardContent, 
@@ -49,8 +51,8 @@ function RFQManagementPage() {
   const { data: rfqData, isLoading } = useRFQs();
   const { data: quoteData } = useQuotations();
 
-  const rfqs = rfqData?.results || [];
-  const quotations = quoteData?.results || [];
+  const rfqs = Array.isArray(rfqData) ? rfqData : (rfqData?.results || []);
+  const quotations = Array.isArray(quoteData) ? quoteData : (quoteData?.results || []);
 
   const handleAcceptBid = (quote: any) => {
     setSelectedQuote(quote);
@@ -67,7 +69,7 @@ function RFQManagementPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#030711] min-h-screen text-white">
+    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#0A0D14] min-h-screen text-white">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
@@ -95,7 +97,8 @@ function RFQManagementPage() {
       <QuotationAwardDialog 
         open={isAwardOpen} 
         onOpenChange={setIsAwardOpen} 
-        quotation={selectedQuote} 
+        quotations={selectedRFQ ? quotations.filter((q: any) => q.rfq === selectedRFQ.id) : []} 
+        rfq={selectedRFQ} 
       />
 
       <div className="grid gap-6 md:grid-cols-4">
@@ -171,7 +174,15 @@ function RFQManagementPage() {
                              </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                             <Button variant="ghost" size="sm" className="h-8 group hover:bg-brass hover:text-navy transition-all px-4 text-[10px] uppercase font-bold tracking-widest">
+                             <Button 
+                               variant="ghost" 
+                               size="sm" 
+                               className="h-8 group hover:bg-brass hover:text-navy transition-all px-4 text-[10px] uppercase font-bold tracking-widest"
+                               onClick={() => {
+                                 setSelectedRFQ(rfq);
+                                 setIsAwardOpen(true);
+                               }}
+                             >
                                 Manage <ChevronRight className="size-4 ml-2" />
                              </Button>
                           </TableCell>
@@ -222,17 +233,33 @@ function RFQManagementPage() {
                           )}
                        </div>
                     </CardContent>
-                    <div className="p-4 bg-white/[0.02] border-t border-white/5 flex gap-2">
-                       <Button size="sm" variant="ghost" className="flex-1 text-[9px] font-bold uppercase tracking-widest border border-white/10">
-                          Decline
-                       </Button>
-                       <Button 
-                        size="sm" 
-                        className="flex-1 bg-brass text-navy text-[9px] font-bold uppercase tracking-widest hover:bg-brass-light"
-                        onClick={() => handleAcceptBid(quote)}
-                       >
-                          Accept Bid
-                       </Button>
+                    <div className="p-4 bg-white/[0.02] border-t border-white/5 flex flex-col gap-2">
+                       <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" className="flex-1 text-[9px] font-bold uppercase tracking-widest border border-white/10">
+                             Decline
+                          </Button>
+                          <Button 
+                           size="sm" 
+                           className="flex-1 bg-brass text-navy text-[9px] font-bold uppercase tracking-widest hover:bg-brass-light"
+                           onClick={() => handleAcceptBid(quote)}
+                          >
+                             Accept Bid
+                          </Button>
+                       </div>
+                       {quote.public_token && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="w-full text-[9px] font-bold uppercase tracking-widest border border-dashed border-white/10 hover:border-brass hover:text-brass flex items-center justify-center gap-1.5"
+                            onClick={() => {
+                              const link = `${window.location.origin}/quote/${quote.public_token}`;
+                              navigator.clipboard.writeText(link);
+                              toast.success("Supplier bidding portal link copied to clipboard!");
+                            }}
+                          >
+                             <Link2 className="size-3" /> Copy Portal Link
+                          </Button>
+                       )}
                     </div>
                  </Card>
                ))}

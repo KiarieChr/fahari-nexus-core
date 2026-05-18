@@ -3,7 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { navSections, type NavSection } from "./nav-config";
 import { useThemeStore } from "@/store/theme";
-import { useCompany } from "@/lib/api-hooks";
+import { useCompany, useInventorySettings } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const collapsed = useThemeStore((s) => s.sidebarCollapsed);
   const { data: company } = useCompany();
+  const { data: settings } = useInventorySettings();
 
   // Filter navigation based on enabled company modules
   const filteredNav = useMemo(
@@ -31,12 +32,13 @@ export function AppSidebar() {
       navSections
         .filter((section) => {
           if (section.id === "restaurant-pro") return company?.enable_restaurant_mode;
+          if (section.id === "bar-pro") return company?.enable_bar_mode;
           if (section.id === "hr") return company?.enable_hr_module;
           if (section.id === "accommodation") return company?.enable_accommodation_module;
           return true;
         })
         .map((section) => {
-          if (section.id === "purchases" && company && !company.enable_complex_procurement) {
+          if (section.id === "purchases" && (settings?.enable_simple_stockin ?? true)) {
             return {
               ...section,
               children: section.children?.filter(
@@ -46,7 +48,7 @@ export function AppSidebar() {
           }
           return section;
         }),
-    [company],
+    [company, settings],
   );
 
   const initial = useMemo(
@@ -110,7 +112,7 @@ export function AppSidebar() {
             return (
               <Link
                 key={section.id}
-                to={section.to!}
+                to={`${section.to!}${section.search || ""}`}
                 className={cn(
                   "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-all relative",
                   active

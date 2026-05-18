@@ -17,7 +17,8 @@ import {
   Zap,
   Bell
 } from "lucide-react";
-import { useBatches, useBatchAnalytics } from "@/lib/api-hooks";
+import { useBatches, useBatchAnalytics, useApproveBatch, useRejectBatch } from "@/lib/api-hooks";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { 
   Card, 
@@ -47,8 +48,15 @@ function BatchControlCenter() {
   const [search, setSearch] = useState("");
   const { data: batchesData, isLoading: batchesLoading } = useBatches();
   const { data: analyticsData, isLoading: analyticsLoading } = useBatchAnalytics();
+  const approveBatch = useApproveBatch();
+  const rejectBatch = useRejectBatch();
 
-  const batches = batchesData?.results || [];
+  const batches = useMemo(() => {
+    if (!batchesData) return [];
+    if (Array.isArray(batchesData)) return batchesData;
+    return batchesData.results || [];
+  }, [batchesData]);
+
   const analytics = analyticsData || { summary: {}, alerts: [] };
 
   const filteredBatches = useMemo(() => {
@@ -80,11 +88,11 @@ function BatchControlCenter() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#030711] min-h-screen text-white">
+    <div className="flex-1 space-y-8 p-8 pt-6 bg-background min-h-screen text-foreground transition-colors duration-500">
       {/* Header Area */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h2 className="text-4xl font-display tracking-tight text-white flex items-center gap-4">
+          <h2 className="text-4xl font-display tracking-tight text-foreground flex items-center gap-4">
             <div className="size-12 rounded-2xl bg-brass/10 border border-brass/20 flex items-center justify-center text-brass">
                <Zap className="size-6" />
             </div>
@@ -96,7 +104,7 @@ function BatchControlCenter() {
         </div>
         
         <div className="flex gap-4">
-           <Button variant="outline" className="bg-white/5 border-white/10 text-white hover:bg-brass hover:text-navy transition-all gap-2 text-[10px] font-bold uppercase tracking-widest h-11 px-6">
+           <Button variant="outline" className="bg-card/50 border-border text-foreground hover:bg-brass hover:text-navy transition-all gap-2 text-[10px] font-bold uppercase tracking-widest h-11 px-6">
              <History className="size-4" />
              Movement Logs
            </Button>
@@ -115,21 +123,21 @@ function BatchControlCenter() {
           { title: "Near Expiry", value: analytics.summary.near_expiry_count, icon: AlertTriangle, color: "text-amber-500", desc: "Expires within 30 days" },
           { title: "Low Stock Alerts", value: analytics.summary.low_stock_count, icon: TrendingDown, color: "text-brass", desc: "Critically low depletion" },
         ].map((stat, i) => (
-          <Card key={i} className="bg-white/[0.02] border-white/5 overflow-hidden group hover:border-white/10 transition-all duration-500">
+          <Card key={i} className="bg-card border-border overflow-hidden group hover:border-brass/30 transition-all duration-500 shadow-xl shadow-navy/5">
             <CardContent className="p-6">
                <div className="flex items-center justify-between mb-4">
-                 <div className={cn("p-2 rounded-lg bg-white/5 border border-white/5", stat.color)}>
+                 <div className={cn("p-2 rounded-lg bg-muted border border-border", stat.color)}>
                     <stat.icon className="size-5" />
                  </div>
-                 <Badge variant="outline" className="bg-white/5 text-[9px] border-white/5">LIVE</Badge>
+                 <Badge variant="outline" className="bg-muted text-[9px] border-border text-foreground">LIVE</Badge>
                </div>
                <div className="space-y-1">
                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{stat.title}</p>
                  <div className="flex items-baseline gap-2">
-                   <h3 className="text-3xl font-display text-white">{analyticsLoading ? <Skeleton className="h-8 w-12 bg-white/5" /> : stat.value}</h3>
+                   <h3 className="text-3xl font-display text-foreground">{analyticsLoading ? <Skeleton className="h-8 w-12 bg-muted" /> : stat.value}</h3>
                    <span className="text-[9px] text-muted-foreground font-medium">Items</span>
                  </div>
-                 <p className="text-[10px] text-muted-foreground italic pt-2 border-t border-white/5 mt-2">{stat.desc}</p>
+                 <p className="text-[10px] text-muted-foreground italic pt-2 border-t border-border mt-2">{stat.desc}</p>
                </div>
             </CardContent>
           </Card>
@@ -146,23 +154,23 @@ function BatchControlCenter() {
                   placeholder="Search Batch ID, Product, or SKU..." 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10 h-12 bg-white/5 border-white/10 focus:border-brass/50 rounded-xl text-xs"
+                  className="pl-10 h-12 bg-card/50 border-border focus:border-brass/50 rounded-xl text-xs"
                 />
               </div>
-              <div className="flex gap-2">
-                 <Button variant="outline" className="h-12 w-12 p-0 rounded-xl bg-white/5 border-white/10">
-                   <Filter className="size-4" />
-                 </Button>
-                 <Button variant="outline" className="h-12 w-12 p-0 rounded-xl bg-white/5 border-white/10">
-                   <Calendar className="size-4" />
-                 </Button>
-              </div>
+               <div className="flex gap-2">
+                  <Button variant="outline" className="h-12 w-12 p-0 rounded-xl bg-card/50 border-border hover:bg-muted text-muted-foreground transition-all">
+                    <Filter className="size-4" />
+                  </Button>
+                  <Button variant="outline" className="h-12 w-12 p-0 rounded-xl bg-card/50 border-border hover:bg-muted text-muted-foreground transition-all">
+                    <Calendar className="size-4" />
+                  </Button>
+               </div>
            </div>
 
-           <div className="rounded-3xl border border-white/5 bg-white/[0.01] overflow-hidden">
+           <div className="rounded-3xl border border-border bg-card/40 overflow-hidden backdrop-blur-sm shadow-2xl shadow-navy/5">
              <Table>
-               <TableHeader className="bg-white/[0.02]">
-                 <TableRow className="border-white/5 hover:bg-transparent">
+               <TableHeader className="bg-muted/30">
+                 <TableRow className="border-border hover:bg-transparent">
                    <TableHead className="text-[10px] uppercase tracking-widest font-bold h-14">Batch Reference</TableHead>
                    <TableHead className="text-[10px] uppercase tracking-widest font-bold h-14">Product Entity</TableHead>
                    <TableHead className="text-[10px] uppercase tracking-widest font-bold h-14">Expiry Health</TableHead>
@@ -173,14 +181,14 @@ function BatchControlCenter() {
                <TableBody>
                  {batchesLoading ? (
                    Array.from({ length: 5 }).map((_, i) => (
-                     <TableRow key={i} className="border-white/5">
-                        <TableCell colSpan={5}><Skeleton className="h-12 w-full bg-white/5" /></TableCell>
-                     </TableRow>
+                      <TableRow key={i} className="border-border">
+                         <TableCell colSpan={5}><Skeleton className="h-12 w-full bg-muted" /></TableCell>
+                      </TableRow>
                    ))
                  ) : filteredBatches.map((batch: any) => {
                    const expiry = getExpiryLabel(batch.expiry_date);
                    return (
-                    <TableRow key={batch.id} className="border-white/5 hover:bg-white/[0.02] group transition-all duration-300">
+                    <TableRow key={batch.id} className="border-border hover:bg-muted/40 group transition-all duration-300">
                       <TableCell>
                         <div className="flex flex-col">
                            <span className="text-[11px] font-mono text-brass font-bold tracking-tight">{batch.batch_number}</span>
@@ -189,13 +197,13 @@ function BatchControlCenter() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                           <div className="size-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-muted-foreground group-hover:text-white transition-colors">
-                              <Package className="size-4" />
-                           </div>
-                           <div className="flex flex-col">
-                             <span className="text-xs font-bold text-white">{batch.product_name}</span>
-                             <span className="text-[9px] text-muted-foreground font-mono">{batch.sku}</span>
-                           </div>
+                            <div className="size-9 rounded-xl bg-muted border border-border flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                               <Package className="size-4" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-foreground">{batch.product_name}</span>
+                              <span className="text-[9px] text-muted-foreground font-mono">{batch.sku}</span>
+                            </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -203,31 +211,37 @@ function BatchControlCenter() {
                            <Badge variant="outline" className={cn("w-fit text-[9px] font-bold px-2 py-0.5 rounded-full border-none", expiry.color)}>
                              {expiry.label}
                            </Badge>
-                           <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
+                           <div className="w-24 h-1 bg-muted rounded-full overflow-hidden">
                               <div className="h-full bg-brass/40" style={{ width: '65%' }} />
                            </div>
                          </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn("text-[9px] font-bold border-white/5", getStatusColor(batch.quality_status))}>
+                        <Badge variant="outline" className={cn("text-[9px] font-bold border-border", getStatusColor(batch.quality_status))}>
                           {batch.quality_status || 'PENDING'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-white/10">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted text-muted-foreground">
                               <MoreVertical className="size-4 text-muted-foreground" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-[#0A0D14] border-white/10 text-white w-40">
-                             <DropdownMenuItem className="text-[10px] uppercase font-bold tracking-widest gap-2 focus:bg-brass focus:text-navy cursor-pointer">
+                          <DropdownMenuContent align="end" className="bg-popover border-border text-popover-foreground w-40">
+                             <DropdownMenuItem 
+                               onClick={() => approveBatch.mutate(batch.id, { onSuccess: () => toast.success("Batch approved successfully!") })}
+                               className="text-[10px] uppercase font-bold tracking-widest gap-2 focus:bg-brass focus:text-navy cursor-pointer"
+                             >
                                 <ShieldCheck className="size-3.5" /> Approve Batch
                              </DropdownMenuItem>
-                             <DropdownMenuItem className="text-[10px] uppercase font-bold tracking-widest gap-2 focus:bg-rose-500 focus:text-white cursor-pointer">
+                             <DropdownMenuItem 
+                               onClick={() => rejectBatch.mutate(batch.id, { onSuccess: () => toast.success("Batch rejected successfully!") })}
+                               className="text-[10px] uppercase font-bold tracking-widest gap-2 focus:bg-rose-500 focus:text-white cursor-pointer"
+                             >
                                 <ShieldAlert className="size-3.5" /> Flag Issue
                              </DropdownMenuItem>
-                             <DropdownMenuItem className="text-[10px] uppercase font-bold tracking-widest gap-2 focus:bg-white/10 cursor-pointer">
+                             <DropdownMenuItem className="text-[10px] uppercase font-bold tracking-widest gap-2 focus:bg-muted cursor-pointer">
                                 <History className="size-3.5" /> View Movements
                              </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -243,8 +257,8 @@ function BatchControlCenter() {
 
         {/* Real-time Alerts Sidebar */}
         <div className="space-y-6">
-           <Card className="bg-[#0A0D14] border-brass/20 shadow-2xl shadow-brass/5">
-             <CardHeader className="border-b border-white/5 bg-white/[0.02]">
+           <Card className="bg-card border-brass/20 shadow-2xl shadow-brass/5">
+             <CardHeader className="border-b border-border bg-muted/30">
                 <CardTitle className="text-xs font-bold uppercase tracking-[0.2em] text-brass flex items-center justify-between">
                    Live Alert Engine
                    <Bell className="size-4 animate-pulse" />
@@ -252,17 +266,17 @@ function BatchControlCenter() {
              </CardHeader>
              <CardContent className="p-0">
                <ScrollArea className="h-[500px]">
-                 <div className="divide-y divide-white/5">
+                 <div className="divide-y divide-border">
                     {analytics.alerts.length === 0 ? (
                       <div className="p-8 text-center space-y-3">
                          <CheckCircle2 className="size-8 text-emerald-500 mx-auto" />
                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">No Critical Threats</p>
                       </div>
                     ) : analytics.alerts.map((alert: any, i: number) => (
-                      <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors group cursor-pointer">
+                      <div key={i} className="p-4 hover:bg-muted/30 transition-colors group cursor-pointer">
                          <div className="flex gap-3">
                             <div className={cn(
-                              "size-8 rounded-lg flex items-center justify-center shrink-0 border border-white/5",
+                              "size-8 rounded-lg flex items-center justify-center shrink-0 border border-border",
                               alert.type === 'expired' ? "bg-rose-500/10 text-rose-500" : 
                               alert.type === 'near_expiry' ? "bg-amber-500/10 text-amber-500" : "bg-brass/10 text-brass"
                             )}>
@@ -270,7 +284,7 @@ function BatchControlCenter() {
                                 alert.type === 'near_expiry' ? <AlertTriangle className="size-4" /> : <TrendingDown className="size-4" />}
                             </div>
                             <div className="flex-1 space-y-1">
-                               <p className="text-[11px] font-bold text-white leading-snug group-hover:text-brass transition-colors">{alert.message}</p>
+                               <p className="text-[11px] font-bold text-foreground leading-snug group-hover:text-brass transition-colors">{alert.message}</p>
                                <div className="flex items-center gap-2">
                                   <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">{alert.product}</span>
                                   <ChevronRight className="size-2.5 text-muted-foreground" />
@@ -284,7 +298,7 @@ function BatchControlCenter() {
                  </div>
                </ScrollArea>
              </CardContent>
-             <div className="p-4 border-t border-white/5 bg-white/[0.01] text-center">
+             <div className="p-4 border-t border-border bg-muted/20 text-center">
                 <Button variant="link" className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground hover:text-brass transition-all">
                    Configure Thresholds
                 </Button>
@@ -296,7 +310,7 @@ function BatchControlCenter() {
                  <ShieldCheck className="size-4" />
                  Smart Engine Tip
               </h4>
-              <p className="text-[11px] text-blue-200/60 leading-relaxed italic">
+              <p className="text-[11px] text-blue-600/80 dark:text-blue-200/60 leading-relaxed italic">
                  Products like Bread have a high-risk profile. We recommend setting a 2-day buffer for near-expiry alerts on these categories.
               </p>
            </div>
