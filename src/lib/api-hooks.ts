@@ -360,6 +360,69 @@ export const useExportExcel = () => {
   });
 };
 
+// ── Inventory Journal ──────────────────────────────────────────────────────────
+export interface AdjustStockPayload {
+  adjustment_type: "add" | "remove" | "set";
+  quantity: number;
+  batch_number?: string;
+  manufacturing_date?: string;
+  expiry_date?: string;
+  reason?: string;
+  notes?: string;
+}
+
+export const useAdjustStock = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ productId, payload }: { productId: number; payload: AdjustStockPayload }) => {
+      const { data } = await api.post(`/api/v1/products/${productId}/adjust-stock/`, payload);
+      return data;
+    },
+    onSuccess: (_data, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product", productId] });
+      queryClient.invalidateQueries({ queryKey: ["product-batches", productId] });
+    },
+  });
+};
+
+// ── Super-admin: Sync stock quantities ────────────────────────────────────────
+export const useSyncProductStock = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (companyId?: number) => {
+      const { data } = await api.post("/api/v1/products/sync-stock/", companyId ? { company_id: companyId } : {});
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+};
+
+// ── Super-admin: Create main branch ───────────────────────────────────────────
+export interface CreateMainBranchPayload {
+  company_id: number;
+  branch_name?: string;
+  branch_code?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
+export const useCreateMainBranch = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateMainBranchPayload) => {
+      const { data } = await api.post("/api/v1/branches/create-main-branch/", payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+    },
+  });
+};
+
 export const useCreateCategory = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -500,7 +563,6 @@ export const usePurchases = () => {
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
 };
-
 export const useUserProfile = () => {
   return useQuery({
     queryKey: ["user-profile"],
@@ -1632,6 +1694,17 @@ export const usePayslips = () => {
       const response = await api.get("/api/v1/payroll/payslips/");
       return response.data;
     },
+  });
+};
+
+export const useAuditTrail = (params: any = {}) => {
+  return useQuery({
+    queryKey: ["audit-trail", params],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v1/audit-trail/", { params });
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
   });
 };
 

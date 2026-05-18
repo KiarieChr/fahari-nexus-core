@@ -22,6 +22,9 @@ import {
   Upload,
   Zap,
   X,
+  BookOpen,
+  RefreshCw,
+  GitBranch,
 } from "lucide-react";
 import {
   useProducts,
@@ -36,6 +39,8 @@ import {
   useRemoveRecipeIngredient,
   Recipe,
   RecipeIngredientDetail,
+  useUserProfile,
+  useSyncProductStock,
 } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -52,6 +57,8 @@ import {
 } from "@/components/ui/table";
 import { ProductFormSheet } from "@/components/inventory/ProductFormSheet";
 import { BulkUploadDialog } from "@/components/inventory/BulkUploadDialog";
+import { StockJournalDialog } from "@/components/inventory/StockJournalDialog";
+import { CreateMainBranchDialog } from "@/components/inventory/CreateMainBranchDialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -82,12 +89,14 @@ function ProductDetailsSheet({
   onOpenChange,
   setEditingProduct,
   setIsFormOpen,
+  onOpenJournal,
 }: {
   productId: number | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   setEditingProduct: (p: Product | null) => void;
   setIsFormOpen: (open: boolean) => void;
+  onOpenJournal: (product: Product) => void;
 }) {
   const { data: product, isLoading: isLoadingProduct } = useProductDetail(productId);
   const { data: batchesData, isLoading: isLoadingBatches } = useProductBatches(productId);
@@ -362,11 +371,18 @@ function ProductDetailsSheet({
 
             <div className="p-6 border-t border-white/5 bg-[#0A0D14]/90 backdrop-blur-xl flex gap-3">
               <button
+                onClick={() => onOpenJournal(product)}
+                className="flex-1 h-12 rounded-xl bg-white/[0.04] border border-white/10 text-muted-foreground font-bold uppercase tracking-widest text-[10px] hover:border-brass/30 hover:text-brass transition-all shadow-xl flex items-center justify-center gap-2"
+              >
+                <BookOpen className="size-3.5" />
+                Stock Journal
+              </button>
+              <button
                 onClick={() => {
                   setEditingProduct(product);
                   setIsFormOpen(true);
                 }}
-                className="w-full h-12 rounded-xl bg-brass text-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brass-light transition-all shadow-xl shadow-brass/10 flex items-center justify-center gap-2"
+                className="flex-1 h-12 rounded-xl bg-brass text-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brass-light transition-all shadow-xl shadow-brass/10 flex items-center justify-center gap-2"
               >
                 <ArrowRight className="size-3.5" />
                 Update SKU
@@ -436,9 +452,21 @@ function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
+  const [journalProduct, setJournalProduct] = useState<Product | null>(null);
+  const [isBranchDialogOpen, setIsBranchDialogOpen] = useState(false);
 
   const { data, isLoading } = useProducts();
   const exportExcel = useExportExcel();
+  const syncStock = useSyncProductStock();
+  const { data: profile } = useUserProfile();
+  const isSuperuser = (profile as any)?.is_superuser === true;
+
+  const openJournal = (product: Product) => {
+    setJournalProduct(product);
+    setIsJournalOpen(true);
+    setIsDetailsOpen(false);
+  };
 
   const products = useMemo(() => {
     if (!data) return [];
@@ -535,6 +563,35 @@ function ProductsPage() {
                 )}
                 Export Catalog
               </DropdownMenuItem>
+              {isSuperuser && (
+                <>
+                  <div className="my-1 h-px bg-white/10 mx-2" />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      syncStock.mutate(undefined, {
+                        onSuccess: (data) => toast.success(`Sync complete: ${data.updated} products updated.`),
+                        onError: () => toast.error("Stock sync failed."),
+                      });
+                    }}
+                    disabled={syncStock.isPending}
+                    className="gap-2 text-[10px] uppercase tracking-widest font-bold focus:bg-blue-600 focus:text-white cursor-pointer"
+                  >
+                    {syncStock.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-3.5" />
+                    )}
+                    Sync Stock Quantities
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsBranchDialogOpen(true)}
+                    className="gap-2 text-[10px] uppercase tracking-widest font-bold focus:bg-blue-600 focus:text-white cursor-pointer"
+                  >
+                    <GitBranch className="size-3.5" />
+                    Create Main Branch
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -754,11 +811,25 @@ function ProductsPage() {
         onOpenChange={setIsDetailsOpen}
         setEditingProduct={setEditingProduct}
         setIsFormOpen={setIsFormOpen}
+        onOpenJournal={openJournal}
       />
 
       <ProductFormSheet isOpen={isFormOpen} onOpenChange={setIsFormOpen} product={editingProduct} />
 
       <BulkUploadDialog isOpen={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen} />
+
+      <StockJournalDialog
+        productId={journalProduct?.id ?? null}
+        productName={journalProduct?.name}
+        productSku={journalProduct?.sku}
+        isOpen={isJournalOpen}
+        onOpenChange={setIsJournalOpen}
+      />
+
+      <CreateMainBranchDialog
+        isOpen={isBranchDialogOpen}
+        onOpenChange={setIsBranchDialogOpen}
+      />
     </div>
   );
 }

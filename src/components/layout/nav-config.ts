@@ -97,7 +97,15 @@ export const navSections: NavSection[] = [
   { id: "logistics", label: "Logistics", icon: Truck, to: "/logistics" },
   { id: "reports", label: "Reports", icon: BarChart3, to: "/reports" },
   { id: "company", label: "Company", icon: Building2, to: "/company" },
-  { id: "settings", label: "Settings", icon: Settings, to: "/settings" },
+  { 
+    id: "settings", 
+    label: "Settings", 
+    icon: Settings,
+    children: [
+      { label: "General Settings", to: "/settings" },
+      { label: "Audit Trails", to: "/settings/audit" },
+    ]
+  },
 ];
 
 // Unused icon hint to satisfy tree-shaking expectations

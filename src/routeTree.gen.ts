@@ -24,6 +24,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SalesIndexRouteImport } from './routes/sales.index'
 import { Route as SettingsUsersRouteImport } from './routes/settings_.users'
 import { Route as SettingsRolesRouteImport } from './routes/settings_.roles'
+import { Route as SettingsAuditRouteImport } from './routes/settings_.audit'
 import { Route as SalesSummariesRouteImport } from './routes/sales.summaries'
 import { Route as SalesSettingsRouteImport } from './routes/sales.settings'
 import { Route as SalesDashboardRouteImport } from './routes/sales.dashboard'
@@ -121,6 +122,11 @@ const SettingsUsersRoute = SettingsUsersRouteImport.update({
 const SettingsRolesRoute = SettingsRolesRouteImport.update({
   id: '/settings_/roles',
   path: '/settings/roles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsAuditRoute = SettingsAuditRouteImport.update({
+  id: '/settings_/audit',
+  path: '/settings/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SalesSummariesRoute = SalesSummariesRouteImport.update({
@@ -275,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
+  '/settings/audit': typeof SettingsAuditRoute
   '/settings/roles': typeof SettingsRolesRoute
   '/settings/users': typeof SettingsUsersRoute
   '/sales/': typeof SalesIndexRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
+  '/settings/audit': typeof SettingsAuditRoute
   '/settings/roles': typeof SettingsRolesRoute
   '/settings/users': typeof SettingsUsersRoute
   '/sales': typeof SalesIndexRoute
@@ -355,6 +363,7 @@ export interface FileRoutesById {
   '/sales/dashboard': typeof SalesDashboardRoute
   '/sales/settings': typeof SalesSettingsRoute
   '/sales/summaries': typeof SalesSummariesRoute
+  '/settings_/audit': typeof SettingsAuditRoute
   '/settings_/roles': typeof SettingsRolesRoute
   '/settings_/users': typeof SettingsUsersRoute
   '/sales/': typeof SalesIndexRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
+    | '/settings/audit'
     | '/settings/roles'
     | '/settings/users'
     | '/sales/'
@@ -436,6 +446,7 @@ export interface FileRouteTypes {
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
+    | '/settings/audit'
     | '/settings/roles'
     | '/settings/users'
     | '/sales'
@@ -476,6 +487,7 @@ export interface FileRouteTypes {
     | '/sales/dashboard'
     | '/sales/settings'
     | '/sales/summaries'
+    | '/settings_/audit'
     | '/settings_/roles'
     | '/settings_/users'
     | '/sales/'
@@ -514,6 +526,7 @@ export interface RootRouteChildren {
   PurchasesStockInRoute: typeof PurchasesStockInRoute
   PurchasesSuppliersRoute: typeof PurchasesSuppliersRoute
   QuoteTokenRoute: typeof QuoteTokenRoute
+  SettingsAuditRoute: typeof SettingsAuditRoute
   SettingsRolesRoute: typeof SettingsRolesRoute
   SettingsUsersRoute: typeof SettingsUsersRoute
 }
@@ -623,6 +636,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/roles'
       fullPath: '/settings/roles'
       preLoaderRoute: typeof SettingsRolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings_/audit': {
+      id: '/settings_/audit'
+      path: '/settings/audit'
+      fullPath: '/settings/audit'
+      preLoaderRoute: typeof SettingsAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sales/summaries': {
@@ -838,6 +858,7 @@ const rootRouteChildren: RootRouteChildren = {
   PurchasesStockInRoute: PurchasesStockInRoute,
   PurchasesSuppliersRoute: PurchasesSuppliersRoute,
   QuoteTokenRoute: QuoteTokenRoute,
+  SettingsAuditRoute: SettingsAuditRoute,
   SettingsRolesRoute: SettingsRolesRoute,
   SettingsUsersRoute: SettingsUsersRoute,
 }

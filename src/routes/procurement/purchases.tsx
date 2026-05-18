@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleReceiveDialog } from "@/components/inventory/SimpleReceiveDialog";
 import { GRNCreateDialog } from "@/components/procurement/GRNCreateDialog";
+import { PurchaseOrderDialog } from "@/components/procurement/PurchaseOrderDialog";
  
 export const Route = createFileRoute("/procurement/purchases")({
   component: PurchasesPage,
@@ -44,12 +45,13 @@ function PurchasesPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isGRNOpen, setIsGRNOpen] = useState(false);
+  const [isPODialogOpen, setIsPODialogOpen] = useState(false);
   const { data: purchasesData, isLoading } = usePurchases();
   const { data: company } = useCompany();
   const { data: settings } = useInventorySettings();
  
   const enableComplex = settings ? !settings.enable_simple_stockin : false;
-  const purchases = purchasesData?.results || [];
+  const purchases = Array.isArray(purchasesData) ? purchasesData : purchasesData?.results || [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -108,7 +110,10 @@ function PurchasesPage() {
               Manage RFQs
             </Button>
           )}
-          <Button className="bg-brass text-navy font-bold uppercase tracking-widest text-[10px] h-11 px-6 hover:bg-brass-light transition-all shadow-lg shadow-brass/20">
+          <Button 
+            className="bg-brass text-navy font-bold uppercase tracking-widest text-[10px] h-11 px-6 hover:bg-brass-light transition-all shadow-lg shadow-brass/20"
+            onClick={() => setIsPODialogOpen(true)}
+          >
             <Plus className="size-4 mr-2" />
             New Purchase Order
           </Button>
@@ -239,6 +244,11 @@ function PurchasesPage() {
         open={isGRNOpen} 
         onOpenChange={setIsGRNOpen}
         prefillPurchase={selectedPurchase}
+      />
+
+      <PurchaseOrderDialog 
+        isOpen={isPODialogOpen} 
+        onOpenChange={setIsPODialogOpen} 
       />
     </div>
   );
