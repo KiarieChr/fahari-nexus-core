@@ -14,6 +14,12 @@ import {
 import { useCategories } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 import { CategoryFormSheet } from "@/components/inventory/CategoryFormSheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/inventory/categories")({
   head: () => ({
@@ -31,6 +37,7 @@ export const Route = createFileRoute("/inventory/categories")({
 function CategoriesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const { data, isLoading } = useCategories();
   const categories = data?.results || [];
 
@@ -66,7 +73,10 @@ function CategoriesPage() {
         </div>
         <div className="flex gap-3">
           <button 
-            onClick={() => setIsFormOpen(true)}
+            onClick={() => {
+              setSelectedCategory(null);
+              setIsFormOpen(true);
+            }}
             className="h-10 px-5 rounded-md bg-navy text-brass-light hover:bg-navy/90 transition-all flex items-center gap-2 text-xs font-medium uppercase tracking-widest border border-brass/20 shadow-lg"
           >
             <Plus className="size-3.5" />
@@ -149,6 +159,10 @@ function CategoriesPage() {
           filteredCategories.map((category: any) => (
             <div
               key={category.id}
+              onClick={() => {
+                setSelectedCategory(category);
+                setIsFormOpen(true);
+              }}
               className="group relative p-5 rounded-xl border border-border bg-card hover:border-brass/40 hover:shadow-lg hover:shadow-brass/5 transition-all flex items-center gap-4 cursor-pointer"
             >
               <div
@@ -199,14 +213,33 @@ function CategoriesPage() {
 
               <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-brass group-hover:translate-x-1 transition-all" />
 
-              <button className="absolute top-2 right-2 size-6 rounded-md hover:bg-muted grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <MoreHorizontal className="size-3.5" />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button 
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-2 right-2 size-6 rounded-md hover:bg-muted grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <MoreHorizontal className="size-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-[#0A0D14] border-white/5 text-white">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCategory(category);
+                      setIsFormOpen(true);
+                    }}
+                    className="gap-2 focus:bg-brass focus:text-navy cursor-pointer text-xs"
+                  >
+                    Edit Category
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ))
         )}
       </div>
-      <CategoryFormSheet isOpen={isFormOpen} onOpenChange={setIsFormOpen} />
+      <CategoryFormSheet isOpen={isFormOpen} onOpenChange={setIsFormOpen} category={selectedCategory} />
     </div>
   );
 }

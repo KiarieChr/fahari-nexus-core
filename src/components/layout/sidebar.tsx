@@ -31,6 +31,7 @@ export function AppSidebar() {
     () =>
       navSections
         .filter((section) => {
+          if (section.id === "pos") return company?.enable_retail_mode || company?.enable_wholesale_mode;
           if (section.id === "restaurant-pro") return company?.enable_restaurant_mode;
           if (section.id === "bar-pro") return company?.enable_bar_mode;
           if (section.id === "hr") return company?.enable_hr_module;
@@ -38,6 +39,12 @@ export function AppSidebar() {
           return true;
         })
         .map((section) => {
+          if (section.id === "inventory" && !company?.enable_restaurant_mode && !company?.enable_bar_mode) {
+            return {
+              ...section,
+              children: section.children?.filter((child) => child.id !== "recipes"),
+            };
+          }
           if (section.id === "purchases" && (settings?.enable_simple_stockin ?? true)) {
             return {
               ...section,

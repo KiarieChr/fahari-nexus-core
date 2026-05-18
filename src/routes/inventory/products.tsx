@@ -32,16 +32,11 @@ import {
   useProductBatches,
   Product,
   useExportExcel,
-  useRecipeForProduct,
-  useCreateRecipe,
-  useUpdateRecipe,
-  useAddRecipeIngredient,
-  useRemoveRecipeIngredient,
-  Recipe,
-  RecipeIngredientDetail,
   useUserProfile,
   useSyncProductStock,
+  useCompany,
 } from "@/lib/api-hooks";
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -363,7 +358,16 @@ function ProductDetailsSheet({
                 {product.product_type === "menu_item" && (
                   <>
                     <Separator className="bg-white/5" />
-                    <RecipeManagerSection productId={product.id} sellingPrice={product.selling_price} />
+                    <div className="py-4 flex flex-col items-center justify-center p-6 bg-brass/5 border border-brass/10 rounded-xl space-y-3">
+                       <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground flex items-center gap-2">
+                          <Utensils className="size-4 text-brass" />
+                          Recipe Management
+                        </h3>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Recipes are now managed in a dedicated dashboard.</p>
+                        <Link to="/inventory/recipes" className="px-6 py-2.5 bg-brass text-navy hover:bg-brass-light transition-all rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-brass/20">
+                            Open Recipe Dashboard <ArrowRight className="size-3.5" />
+                        </Link>
+                    </div>
                   </>
                 )}
               </div>
@@ -457,10 +461,35 @@ function ProductsPage() {
   const [isBranchDialogOpen, setIsBranchDialogOpen] = useState(false);
 
   const { data, isLoading } = useProducts();
+  const { data: company } = useCompany();
   const exportExcel = useExportExcel();
   const syncStock = useSyncProductStock();
   const { data: profile } = useUserProfile();
   const isSuperuser = (profile as any)?.is_superuser === true;
+
+  const sections = useMemo(() => {
+    const list: { value: SectionFilter; label: string }[] = [{ value: "all", label: "All Catalog" }];
+    if (!company) {
+      return [
+        { value: "all", label: "All Catalog" },
+        { value: "general", label: "Retail Store" },
+        { value: "restaurant", label: "Restaurant / Kitchen" },
+        { value: "bar", label: "Bar & Drinks" },
+        { value: "service", label: "Services" },
+      ] as const;
+    }
+    if (company.enable_retail_mode || company.enable_wholesale_mode) {
+      list.push({ value: "general", label: "Retail Store" });
+    }
+    if (company.enable_restaurant_mode) {
+      list.push({ value: "restaurant", label: "Restaurant / Kitchen" });
+    }
+    if (company.enable_bar_mode) {
+      list.push({ value: "bar", label: "Bar & Drinks" });
+    }
+    list.push({ value: "service", label: "Services" });
+    return list;
+  }, [company]);
 
   const openJournal = (product: Product) => {
     setJournalProduct(product);
@@ -568,7 +597,7 @@ function ProductsPage() {
                   <div className="my-1 h-px bg-white/10 mx-2" />
                   <DropdownMenuItem
                     onClick={() => {
-                      syncStock.mutate(undefined, {
+                      syncStock.mutate(company?.id, {
                         onSuccess: (data) => toast.success(`Sync complete: ${data.updated} products updated.`),
                         onError: () => toast.error("Stock sync failed."),
                       });
@@ -659,26 +688,18 @@ function ProductsPage() {
 
       <div className="flex flex-col gap-6 mb-8">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(["all", "general", "restaurant", "bar", "service"] as const).map((s) => (
+          {sections.map((s) => (
             <button
-              key={s}
-              onClick={() => setActiveSection(s)}
+              key={s.value}
+              onClick={() => setActiveSection(s.value)}
               className={cn(
                 "px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border",
-                activeSection === s
+                activeSection === s.value
                   ? "bg-brass text-navy border-brass shadow-lg shadow-brass/20"
                   : "bg-card text-muted-foreground border-border hover:border-brass/40",
               )}
             >
-              {s === "all"
-                ? "All Catalog"
-                : s === "general"
-                  ? "Retail Store"
-                  : s === "restaurant"
-                    ? "Restaurant / Kitchen"
-                    : s === "bar" 
-                      ? "Bar & Drinks" 
-                      : "Services"}
+              {s.label}
             </button>
           ))}
         </div>
@@ -834,286 +855,3 @@ function ProductsPage() {
   );
 }
 
-// ==========================================
-// 🍳 RECIPE & BOM DASHBOARD COMPONENT
-// ==========================================
-interface RecipeManagerSectionProps {
-  productId: number;
-  sellingPrice: number;
-}
-
-function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionProps) {
-  const { data: recipe, isLoading: loadingRecipe } = useRecipeForProduct(productId);
-  const { data: productsData } = useProducts();
-  
-  const createRecipe = useCreateRecipe();
-  const updateRecipe = useUpdateRecipe();
-  const addIngredient = useAddRecipeIngredient();
-  const removeIngredient = useRemoveRecipeIngredient();
-
-  const [isEditingSteps, setIsEditingSteps] = useState(false);
-  const [instructionsText, setInstructionsText] = useState("");
-  const [prepTime, setPrepTime] = useState<number>(15);
-
-  const [selectedIngredientId, setSelectedIngredientId] = useState<string>("");
-  const [quantity, setQuantity] = useState<string>("0.1");
-  const [wastage, setWastage] = useState<string>("0");
-  const [uom, setUom] = useState<string>("kg");
-
-  // Sync details when recipe loads
-  useEffect(() => {
-    if (recipe) {
-      setInstructionsText(recipe.instructions || "");
-      setPrepTime(recipe.preparation_time_minutes || 15);
-    }
-  }, [recipe]);
-
-  const rawMaterials = useMemo(() => {
-    if (!productsData) return [];
-    const prods = Array.isArray(productsData) ? productsData : (productsData as any).results || [];
-    return prods.filter((p: any) => p.product_type === "raw_material");
-  }, [productsData]);
-
-  if (loadingRecipe) {
-    return (
-      <div className="py-6 flex items-center justify-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
-        <Loader2 className="size-4 animate-spin text-brass" />
-        Analyzing Recipe Book...
-      </div>
-    );
-  }
-
-  const handleCreateRecipe = async () => {
-    try {
-      await createRecipe.mutateAsync({
-        menu_item: productId,
-        instructions: "Standard preparation instructions.",
-        preparation_time_minutes: 15,
-      });
-      toast.success("Recipe card created! Add your ingredients now.");
-    } catch (err) {
-      toast.error("Failed to create recipe card.");
-    }
-  };
-
-  const handleSaveRecipeDetails = async () => {
-    if (!recipe) return;
-    try {
-      await updateRecipe.mutateAsync({
-        id: recipe.id,
-        data: {
-          instructions: instructionsText,
-          preparation_time_minutes: Number(prepTime),
-        },
-      });
-      setIsEditingSteps(false);
-      toast.success("Recipe instructions updated!");
-    } catch (err) {
-      toast.error("Failed to save recipe instructions.");
-    }
-  };
-
-  const handleAddIngredient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!recipe || !selectedIngredientId) return;
-    try {
-      await addIngredient.mutateAsync({
-        recipe: recipe.id,
-        ingredient: Number(selectedIngredientId),
-        quantity: Number(quantity),
-        unit_of_measure: uom,
-        wastage_allowance_pct: Number(wastage),
-      });
-      setSelectedIngredientId("");
-      setQuantity("0.1");
-      setWastage("0");
-      toast.success("Ingredient added to recipe!");
-    } catch (err) {
-      toast.error("Failed to add ingredient.");
-    }
-  };
-
-  const handleRemoveIngredient = async (id: number) => {
-    try {
-      await removeIngredient.mutateAsync(id);
-      toast.success("Ingredient removed from recipe.");
-    } catch (err) {
-      toast.error("Failed to remove ingredient.");
-    }
-  };
-
-  if (!recipe) {
-    return (
-      <section className="p-6 rounded-2xl bg-brass/5 border border-brass/25 text-center space-y-4 my-6">
-        <Utensils className="size-10 text-brass mx-auto" />
-        <div>
-          <h4 className="font-bold text-white text-sm">No Recipe Linked</h4>
-          <p className="text-[10px] text-muted-foreground mt-1 max-w-sm mx-auto">
-            This menu item does not have a recipe card yet. Create one to enable ingredient deduction and food cost analysis.
-          </p>
-        </div>
-        <Button onClick={handleCreateRecipe} className="bg-brass text-navy font-bold uppercase tracking-widest text-[9px] hover:bg-brass-light h-9 px-6 rounded-xl">
-          Build Recipe Card
-        </Button>
-      </section>
-    );
-  }
-
-  // Cost calculations
-  const baseCost = recipe.base_cost || 0;
-  const foodCostPct = recipe.food_cost_percentage || 0;
-
-  return (
-    <section className="space-y-6 my-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-          <Utensils className="size-3.5 text-brass" />
-          Recipe & Bill of Materials (BOM)
-        </h3>
-        <Badge className={cn("text-[9px] uppercase font-bold tracking-widest px-2.5 py-0.5", 
-          foodCostPct <= 30 ? "bg-emerald-500/20 text-emerald-400" :
-          foodCostPct <= 45 ? "bg-amber-500/20 text-amber-400" : "bg-rose-500/20 text-rose-400"
-        )}>
-          {foodCostPct.toFixed(1)}% Food Cost
-        </Badge>
-      </div>
-
-      {/* Dynamic Metrics Grid */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 shadow-inner">
-          <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Recipe Base Cost</p>
-          <p className="text-xs font-display text-white">{new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 0 }).format(baseCost)}</p>
-        </div>
-        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 shadow-inner">
-          <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Prep Time</p>
-          <p className="text-xs font-display text-white">{prepTime} mins</p>
-        </div>
-        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 shadow-inner">
-          <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-1 font-bold">Profit Margin</p>
-          <p className="text-xs font-display text-emerald-400">{Math.max(0, 100 - foodCostPct).toFixed(1)}%</p>
-        </div>
-      </div>
-
-      {/* Ingredients List */}
-      <div className="space-y-3">
-        <h4 className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Raw Ingredients List</h4>
-        {recipe.ingredients && recipe.ingredients.length > 0 ? (
-          <div className="rounded-xl border border-white/5 bg-white/[0.01] overflow-hidden">
-            <Table>
-              <TableHeader className="bg-white/[0.03]">
-                <TableRow className="border-white/5 hover:bg-transparent">
-                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-muted-foreground">Ingredient</TableHead>
-                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-right text-muted-foreground">Portion Qty</TableHead>
-                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-right text-muted-foreground">Wastage %</TableHead>
-                  <TableHead className="text-[8px] uppercase tracking-widest h-8 text-right text-muted-foreground">Cost</TableHead>
-                  <TableHead className="h-8 w-8"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recipe.ingredients.map((ing) => (
-                  <TableRow key={ing.id} className="border-white/5 hover:bg-white/[0.01] transition-colors">
-                    <TableCell className="py-2.5">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-xs text-white">{ing.ingredient_name}</span>
-                        <span className="text-[8px] font-mono text-muted-foreground uppercase">{ing.ingredient_sku}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right py-2.5 text-xs text-white font-mono">{ing.quantity} {ing.unit_of_measure}</TableCell>
-                    <TableCell className="text-right py-2.5 text-xs text-muted-foreground font-mono">{ing.wastage_allowance_pct}%</TableCell>
-                    <TableCell className="text-right py-2.5 text-xs text-brass font-mono">
-                      {new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 0 }).format((ing.ingredient_cost || 0) * ing.quantity * (1 + ing.wastage_allowance_pct / 100))}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-center">
-                      <button onClick={() => handleRemoveIngredient(ing.id)} className="text-muted-foreground hover:text-rose-500 transition-colors p-1">
-                        <X className="size-3.5" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="py-8 text-center rounded-xl border border-dashed border-white/5 bg-white/[0.01]">
-            <Layers className="size-6 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">No Ingredients Configured</p>
-          </div>
-        )}
-      </div>
-
-      {/* Add Ingredient Form */}
-      <form onSubmit={handleAddIngredient} className="p-4 rounded-xl border border-white/5 bg-white/[0.01] space-y-4">
-        <h4 className="text-[9px] uppercase tracking-widest text-brass font-bold">Add Ingredient to recipe</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5 col-span-2">
-            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Select Ingredient</Label>
-            <select value={selectedIngredientId} onChange={(e: any) => setSelectedIngredientId(e.target.value)} className="w-full bg-[#0A0D14] border border-white/10 rounded-xl h-10 px-3 text-xs text-white outline-none focus:border-brass/50">
-              <option value="">-- Choose Ingredient --</option>
-              {rawMaterials.map((mat: any) => (
-                <option key={mat.id} value={mat.id.toString()}>
-                  {mat.name} ({mat.sku}) - KES {mat.cost_price}/unit
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Quantity Needed</Label>
-            <Input type="number" step="any" value={quantity} onChange={(e: any) => setQuantity(e.target.value)} className="bg-[#0A0D14] border border-white/10 rounded-xl h-10 text-xs text-white" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Unit of measure</Label>
-            <select value={uom} onChange={(e: any) => setUom(e.target.value)} className="w-full bg-[#0A0D14] border border-white/10 rounded-xl h-10 px-3 text-xs text-white outline-none focus:border-brass/50">
-              <option value="kg">Kilograms (Kg)</option>
-              <option value="l">Litres (L)</option>
-              <option value="g">Grams (g)</option>
-              <option value="ml">Millilitres (ml)</option>
-              <option value="pcs">Pieces (pcs)</option>
-            </select>
-          </div>
-          <div className="space-y-1.5 col-span-2">
-            <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Expectant Wastage %</Label>
-            <Input type="number" step="any" value={wastage} onChange={(e: any) => setWastage(e.target.value)} className="bg-[#0A0D14] border border-white/10 rounded-xl h-10 text-xs text-white" />
-          </div>
-        </div>
-        <Button type="submit" disabled={!selectedIngredientId} className="w-full bg-brass text-navy font-bold uppercase tracking-widest text-[9px] hover:bg-brass-light h-10 rounded-xl">
-          Add Ingredient
-        </Button>
-      </form>
-
-      {/* Instructions Section */}
-      <div className="p-4 rounded-xl border border-white/5 bg-white/[0.01] space-y-3">
-        <div className="flex justify-between items-center">
-          <h4 className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Preparation steps</h4>
-          <button type="button" onClick={() => {
-            if (isEditingSteps) {
-              handleSaveRecipeDetails();
-            } else {
-              setIsEditingSteps(true);
-            }
-          }} className="text-[9px] font-bold uppercase tracking-widest text-brass hover:text-brass-light transition-colors">
-            {isEditingSteps ? "Save Steps" : "Edit Steps"}
-          </button>
-        </div>
-
-        {isEditingSteps ? (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Prep time (minutes)</Label>
-              <Input type="number" value={prepTime} onChange={(e: any) => setPrepTime(Number(e.target.value))} className="bg-[#0A0D14] border border-white/10 rounded-xl h-10 text-xs text-white" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[8px] uppercase tracking-widest text-muted-foreground">Instructions</Label>
-              <Textarea value={instructionsText} onChange={(e: any) => setInstructionsText(e.target.value)} className="bg-[#0A0D14] border border-white/10 rounded-xl min-h-[80px] text-xs text-white" />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-white/80 leading-relaxed font-serif italic">
-              "{recipe.instructions || "No preparation steps documented yet."}"
-            </p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}

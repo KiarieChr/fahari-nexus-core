@@ -553,9 +553,15 @@ function SalesPage() {
             subtotal={Number(selectedSale.subtotal)}
             tax={Number(selectedSale.tax_amount)}
             total={Number(selectedSale.total)}
-            kraPin="P051234567A"
+            kraPin={selectedSale.kra_pin || "P051234567A"}
             isEtimsEnabled={true}
-            serialNumber="ETMS-1234567"
+            serialNumber={selectedSale.serial_number || "ETMS-1234567"}
+            paymentMethod={selectedSale.payment_method}
+            amountPaid={Number(selectedSale.amount_paid || selectedSale.total)}
+            changeAmount={Number(selectedSale.change_amount || 0)}
+            branchCode={selectedSale.branch_code || "05"}
+            qrUrl={selectedSale.qr_code_url || selectedSale.qr_url}
+            terminalId={selectedSale.terminal_id || selectedSale.terminal || "TMN-DEFAULT"}
           />
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { createFileRoute } from "@tanstack/react-router";
 import { 
   BarChart3, 
@@ -239,8 +240,16 @@ function ReportsPage() {
         }
         
         // 2. Client-side fallback rendering
-        setIsGeneratingPDF(true);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        
+        // Scroll to top to prevent html2canvas from rendering out-of-viewport headers/footers as blank
+        window.scrollTo(0, 0);
+        
+        flushSync(() => {
+          setIsGeneratingPDF(true);
+        });
+        
+        // Ensure the browser has painted the expanded table
+        await new Promise((resolve) => setTimeout(resolve, 800));
         
         try {
           const html2pdfLib = await loadHtml2Pdf();
@@ -252,8 +261,8 @@ function ReportsPage() {
           const opt = {
             margin:       0.3,
             filename:     `${activeTab}_report.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, logging: false },
+            image:        { type: 'jpeg', quality: 0.95 },
+            html2canvas:  { scale: 1.5, useCORS: true, logging: false },
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
           };
           
@@ -511,8 +520,7 @@ function ReportsPage() {
             )}
           >
             {/* Dynamic Reusable Premium Corporate Print Header */}
-            {isGeneratingPDF && (
-              <div className="pb-6 mb-6 border-b-2 border-slate-800 text-slate-800 space-y-4">
+            <div className={cn("pb-6 mb-6 border-b-2 border-slate-800 text-slate-800 space-y-4", !isGeneratingPDF && "hidden")}>
                 <div className="flex items-start justify-between">
                   <div className="text-left space-y-1">
                     <h1 className="text-3xl font-extrabold uppercase tracking-widest text-slate-900 font-sans">
@@ -536,7 +544,7 @@ function ReportsPage() {
                   <span>Date: {new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                 </div>
               </div>
-            )}
+
             <CardHeader className="border-b border-slate-100 dark:border-white/5">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-brass">
                 {reportData?.report_name || "System Report Data"}
@@ -552,7 +560,10 @@ function ReportsPage() {
                   <p className="text-xs text-muted-foreground italic font-serif">Compiling multi-warehouse database records...</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] relative">
+                <div className={cn(
+                  "relative",
+                  isGeneratingPDF ? "overflow-visible" : "overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)]"
+                )}>
                   <Table>
                     <TableHeader className={cn(
                       "sticky top-0 z-10 shadow-[0_1px_0_rgba(0,0,0,0.05)]",
@@ -667,11 +678,9 @@ function ReportsPage() {
               )}
             </CardContent>
             {/* Dynamic Reusable Premium Corporate Print Footer */}
-            {isGeneratingPDF && (
-              <div className="pt-4 mt-6 border-t border-slate-300 text-center text-[9px] uppercase tracking-widest text-slate-400 bg-slate-50 p-3 rounded-b">
+            <div className={cn("pt-4 mt-6 border-t border-slate-300 text-center text-[9px] uppercase tracking-widest text-slate-400 bg-slate-50 p-3 rounded-b", !isGeneratingPDF && "hidden")}>
                 This document is a system-generated official audit compiled by {company?.name || "FAHARI NEXUS ERP"}. Confidential & Proprietary.
-              </div>
-            )}
+            </div>
           </Card>
         </div>
 

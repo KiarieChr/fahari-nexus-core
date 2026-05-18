@@ -23,10 +23,20 @@ export interface Branch {
   id: number;
   name: string;
   branch_code: string;
+  description?: string;
   email?: string;
   phone_number?: string;
+  land_phone?: string;
+  address?: string;
   city?: string;
+  operation_mode?: string;
+  has_separate_accounting?: boolean;
+  can_process_refunds_independently?: boolean;
+  can_adjust_prices_independently?: boolean;
+  shared_inventory_with_main?: boolean;
+  is_main_branch?: boolean;
   is_active: boolean;
+  is_open?: boolean;
 }
 
 export const companyApi = {

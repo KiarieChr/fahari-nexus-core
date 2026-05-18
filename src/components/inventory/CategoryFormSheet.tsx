@@ -30,8 +30,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useCreateCategory, useCompany } from "@/lib/api-hooks";
-import { Loader2, Save, Tag } from "lucide-react";
+import { useCreateCategory, useUpdateCategory, useDeleteCategory, useCompany } from "@/lib/api-hooks";
+import { Loader2, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const categorySchema = z.object({
@@ -45,11 +45,14 @@ type CategoryFormValues = z.infer<typeof categorySchema>;
 interface CategoryFormSheetProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  category?: any;
 }
 
-export function CategoryFormSheet({ isOpen, onOpenChange }: CategoryFormSheetProps) {
+export function CategoryFormSheet({ isOpen, onOpenChange, category }: CategoryFormSheetProps) {
   const { data: company } = useCompany();
   const createCategory = useCreateCategory();
+  const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
 
   const isRestaurantOrBar = company?.enable_restaurant_mode || company?.enable_bar_mode;
 
@@ -64,33 +67,62 @@ export function CategoryFormSheet({ isOpen, onOpenChange }: CategoryFormSheetPro
 
   useEffect(() => {
     if (isOpen) {
-      form.reset({
-        name: "",
-        description: "",
-        category_type: "general",
-      });
+      if (category) {
+        form.reset({
+          name: category.name || "",
+          description: category.description || "",
+          category_type: category.category_type || "general",
+        });
+      } else {
+        form.reset({
+          name: "",
+          description: "",
+          category_type: "general",
+        });
+      }
     }
-  }, [isOpen, form]);
+  }, [isOpen, category, form]);
 
   const onSubmit: SubmitHandler<CategoryFormValues> = async (values) => {
     try {
-      await createCategory.mutateAsync(values);
-      toast.success("Category created successfully");
+      if (category) {
+        await updateCategory.mutateAsync({ id: category.id, data: values });
+        toast.success("Category updated successfully");
+      } else {
+        await createCategory.mutateAsync(values);
+        toast.success("Category created successfully");
+      }
       onOpenChange(false);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "An error occurred during submission");
     }
   };
 
+  const handleDelete = async () => {
+    if (!category) return;
+    const confirmDelete = window.confirm(`Are you sure you want to delete category "${category.name}"?`);
+    if (!confirmDelete) return;
+
+    try {
+      await deleteCategory.mutateAsync(category.id);
+      toast.success("Category deleted successfully");
+      onOpenChange(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete category");
+    }
+  };
+
+  const isPending = createCategory.isPending || updateCategory.isPending;
+
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-md border-l border-brass/20 bg-[#0A0D14] text-white p-0 overflow-hidden flex flex-col">
         <SheetHeader className="px-6 py-6 border-b border-white/5 bg-white/[0.02]">
           <SheetTitle className="text-xl font-display text-white">
-            New Product Category
+            {category ? "Edit Product Category" : "New Product Category"}
           </SheetTitle>
           <SheetDescription className="text-muted-foreground text-xs uppercase tracking-widest">
-            Create a new classification for your inventory
+            {category ? `Modify details for category "${category.name}"` : "Create a new classification for your inventory"}
           </SheetDescription>
         </SheetHeader>
 
@@ -128,7 +160,7 @@ export function CategoryFormSheet({ isOpen, onOpenChange }: CategoryFormSheetPro
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
-                          Category Type
+                          Category Type / Mode
                         </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
@@ -137,13 +169,22 @@ export function CategoryFormSheet({ isOpen, onOpenChange }: CategoryFormSheetPro
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="bg-[#0A0D14] border-white/10 text-white">
-                            <SelectItem value="general">General Retail</SelectItem>
-                            <SelectItem value="restaurant">Restaurant / Kitchen</SelectItem>
-                            <SelectItem value="bar">Bar / Drinks</SelectItem>
+                            {company?.enable_retail_mode && (
+                              <SelectItem value="general">General Retail</SelectItem>
+                            )}
+                            {company?.enable_restaurant_mode && (
+                              <SelectItem value="restaurant">Restaurant / Kitchen</SelectItem>
+                            )}
+                            {company?.enable_bar_mode && (
+                              <SelectItem value="bar">Bar / Drinks</SelectItem>
+                            )}
+                            {!company?.enable_retail_mode && !company?.enable_restaurant_mode && !company?.enable_bar_mode && (
+                              <SelectItem value="general">General Retail</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         <FormDescription className="text-[8px] text-muted-foreground">
-                          Determines where these products appear in the POS system.
+                          Specifies the business mode (Retail Store, Restaurant, or Bar) where this category is active.
                         </FormDescription>
                         <FormMessage className="text-[10px]" />
                       </FormItem>
@@ -174,7 +215,23 @@ export function CategoryFormSheet({ isOpen, onOpenChange }: CategoryFormSheetPro
               </div>
             </ScrollArea>
 
-            <SheetFooter className="p-6 border-t border-white/5 bg-[#0A0D14]/90 backdrop-blur-xl flex gap-3">
+            <SheetFooter className="p-6 border-t border-white/5 bg-[#0A0D14]/90 backdrop-blur-xl flex flex-col sm:flex-row gap-3">
+              {category && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleteCategory.isPending}
+                  className="sm:flex-none w-full sm:w-auto h-12 rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition-all text-[10px] font-bold uppercase tracking-widest gap-2"
+                >
+                  {deleteCategory.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                  Delete
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -185,10 +242,10 @@ export function CategoryFormSheet({ isOpen, onOpenChange }: CategoryFormSheetPro
               </Button>
               <Button
                 type="submit"
-                disabled={createCategory.isPending}
+                disabled={isPending}
                 className="flex-1 h-12 rounded-xl bg-brass text-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brass-light transition-all shadow-xl shadow-brass/10 gap-2"
               >
-                {createCategory.isPending ? (
+                {isPending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <Save className="size-4" />

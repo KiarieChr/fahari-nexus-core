@@ -38,6 +38,7 @@ import { usePrint } from "@/hooks/usePrint";
 import { KOTTemplate } from "@/components/pos/KOTTemplate";
 import { BillTemplate } from "@/components/pos/BillTemplate";
 import { useEtimsConfig } from "@/lib/api-hooks";
+import { PinPad } from "@/components/pos/PinPad";
 
 export const Route = createFileRoute("/pos")({
   head: () => ({
@@ -85,12 +86,37 @@ function PosPage() {
   
   const [activeSection, setActiveSection] = useState<PosSection>(initialSection);
   const [searchQuery, setSearchQuery] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
+  
+  // Persistent Cart state (saved in localStorage)
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const savedCart = localStorage.getItem("fahari-pos-cart");
+      if (savedCart) {
+        try {
+          return JSON.parse(savedCart);
+        } catch (e) {
+          console.error("Failed to parse saved cart", e);
+        }
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fahari-pos-cart", JSON.stringify(cart));
+    }
+  }, [cart]);
+
   const [tableNumber, setTableNumber] = useState("");
   const [orderType, setOrderType] = useState("dine_in");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  
+  // Single Cart Item deletion lock
+  const [showDeletePinPad, setShowDeletePinPad] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   
   // New CRM State
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -100,6 +126,18 @@ function PosPage() {
   const [mpesaPhone, setMpesaPhone] = useState("");
   const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null);
   const [isMpesaWaiting, setIsMpesaWaiting] = useState(false);
+
+  const [showClearCartPinPad, setShowClearCartPinPad] = useState(false);
+  const [showCashCheckoutModal, setShowCashCheckoutModal] = useState(false);
+  const [showMpesaCheckoutModal, setShowMpesaCheckoutModal] = useState(false);
+  const [mpesaActiveTab, setMpesaActiveTab] = useState<"stk" | "verify">("stk");
+  const [amountPaidInput, setAmountPaidInput] = useState("");
+  const [customerPhoneInput, setCustomerPhoneInput] = useState("");
+  const [lastCheckoutResult, setLastCheckoutResult] = useState<{
+    amountPaid: number;
+    changeGiven: number;
+    customerName?: string;
+  } | null>(null);
 
   const { data, isLoading } = useProducts({ is_pos: true });
   const { data: catData } = useCategories();
@@ -136,10 +174,34 @@ function PosPage() {
     return customer;
   }, [customers, selectedCustomerId, mpesaPhone]);
 
+  const matchedCustomer = useMemo(() => {
+    if (!customerPhoneInput) return null;
+    const cleanPhoneInput = customerPhoneInput.replace(/\D/g, "");
+    if (cleanPhoneInput.length < 5) return null;
+    return customers.find((c) => {
+      const cleanCustPhone = (c.phone || "").replace(/\D/g, "");
+      return cleanCustPhone.includes(cleanPhoneInput);
+    });
+  }, [customers, customerPhoneInput]);
+
   // Determine available sections
   const availableSections = useMemo(() => {
-    return ["general"] as PosSection[];
-  }, []);
+    const sections: PosSection[] = [];
+    if (company?.enable_retail_mode || company?.enable_wholesale_mode) {
+      sections.push("general");
+    }
+    if (company?.enable_restaurant_mode) {
+      sections.push("restaurant");
+    }
+    if (company?.enable_bar_mode) {
+      sections.push("bar");
+    }
+    // Fallback if none are enabled to prevent rendering issues
+    if (sections.length === 0) {
+      sections.push("general");
+    }
+    return sections;
+  }, [company]);
 
   // Reset section if disabled
   useEffect(() => {
@@ -189,6 +251,15 @@ function PosPage() {
     setCart((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleDeleteCartItem = (itemId: number) => {
+    if (company?.require_manager_to_clear_cart) {
+      setItemToDelete(itemId);
+      setShowDeletePinPad(true);
+    } else {
+      removeFromCart(itemId);
+    }
+  };
+
   const updateQuantity = (id: number, delta: number) => {
     setCart((prev) =>
       prev.map((item) => {
@@ -202,14 +273,17 @@ function PosPage() {
   };
 
   const subtotal = cart.reduce((acc, item) => acc + item.selling_price * item.quantity, 0);
-  const tax = subtotal * 0.16;
+  const isTaxInclusive = company?.tax_inclusive_pricing ?? true;
+  const tax = isTaxInclusive
+    ? (subtotal * 16) / 116
+    : subtotal * 0.16;
   
   const loyaltyDiscount = useMemo(() => {
     if (!invSettings?.enable_loyalty_program || !loyaltyPointsToRedeem) return 0;
     return loyaltyPointsToRedeem * (invSettings.loyalty_point_value || 1);
   }, [invSettings, loyaltyPointsToRedeem]);
 
-  const total = Math.max(0, subtotal + tax - loyaltyDiscount);
+  const total = Math.max(0, isTaxInclusive ? subtotal - loyaltyDiscount : subtotal + tax - loyaltyDiscount);
 
   // Sync amount paid for non-credit sales
   useEffect(() => {
@@ -219,7 +293,7 @@ function PosPage() {
   }, [total, paymentMethod]);
 
   const stkPush = useMpesaStkPush();
-  const { data: mpesaTxData } = useMpesaTransactions(checkoutRequestId || undefined);
+  const { data: mpesaTxData, refetch: refetchMpesaTxs, isFetching: isFetchingMpesaTxs } = useMpesaTransactions(checkoutRequestId || undefined);
 
   // Auto-complete sale when M-Pesa succeeds
   useEffect(() => {
@@ -227,7 +301,7 @@ function PosPage() {
     if (tx?.status === 'SUCCESS' && isMpesaWaiting) {
       setIsMpesaWaiting(false);
       setCheckoutRequestId(null);
-      finalizeSale();
+      handleManualMpesaLink(tx);
     } else if (tx?.status === 'FAILED' && isMpesaWaiting) {
       setIsMpesaWaiting(false);
       setCheckoutRequestId(null);
@@ -235,30 +309,131 @@ function PosPage() {
     }
   }, [mpesaTxData, isMpesaWaiting]);
 
-  const finalizeSale = async () => {
+  const handleClearCartClick = () => {
+    if (company?.require_manager_to_clear_cart) {
+      setShowClearCartPinPad(true);
+    } else {
+      executeClearCart();
+    }
+  };
+
+  const executeClearCart = () => {
+    setCart([]);
+    setSelectedCustomerId(null);
+    setLoyaltyPointsToRedeem(0);
+    setAmountPaid("");
+    setMpesaPhone("");
+    setShowClearCartPinPad(false);
+  };
+
+  const handleStkPush = async () => {
+    try {
+      if (!mpesaPhone) {
+        setIsError("Please enter an M-Pesa phone number");
+        return;
+      }
+      let formattedPhone = mpesaPhone.trim().replace(/\s+/g, "");
+      if (formattedPhone.startsWith("0")) {
+        formattedPhone = "254" + formattedPhone.slice(1);
+      } else if (formattedPhone.startsWith("+")) {
+        formattedPhone = formattedPhone.slice(1);
+      }
+      const response = await stkPush.mutateAsync({
+        phone: formattedPhone,
+        amount: total,
+      });
+      setCheckoutRequestId(response.CheckoutRequestID);
+      setIsMpesaWaiting(true);
+    } catch (err: any) {
+      setIsError(err.response?.data?.error || err.message || "STK Push failed");
+      setTimeout(() => setIsError(null), 5000);
+    }
+  };
+
+  const handleManualMpesaLink = async (tx: any) => {
+    try {
+      const finalCust = matchedCustomer || selectedCustomer;
+      const finalCustId = finalCust?.id || null;
+      const finalAmountPaid = Number(tx.amount) || total;
+      
+      const response = await finalizeSale(finalCustId, finalAmountPaid);
+      
+      setLastCheckoutResult({
+        amountPaid: finalAmountPaid,
+        changeGiven: Math.max(0, finalAmountPaid - total),
+        customerName: finalCust?.name,
+      });
+
+      if (billRef.current) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await printElement(billRef.current);
+      }
+
+      setCart([]);
+      setShowMpesaCheckoutModal(false);
+    } catch (err: any) {
+      setIsError(err.response?.data?.error || err.message || "Checkout failed");
+      setTimeout(() => setIsError(null), 5000);
+    }
+  };
+
+  const handleConfirmCashCheckout = async () => {
+    try {
+      const finalCust = matchedCustomer || selectedCustomer;
+      const finalCustId = finalCust?.id || null;
+      const finalAmountPaid = Number(amountPaidInput || total);
+      
+      const response = await finalizeSale(finalCustId, finalAmountPaid);
+      
+      setLastCheckoutResult({
+        amountPaid: finalAmountPaid,
+        changeGiven: Math.max(0, finalAmountPaid - total),
+        customerName: finalCust?.name,
+      });
+
+      // Print thermal receipt automatically
+      if (billRef.current) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await printElement(billRef.current);
+      }
+
+      setCart([]); // Clear basket
+    } catch (err: any) {
+      setIsError(err.response?.data?.error || err.message || "Checkout failed");
+      setTimeout(() => setIsError(null), 5000);
+    }
+  };
+
+  const finalizeSale = async (overrideCustomerId?: number | null, overrideAmountPaid?: number) => {
+    const finalCustomerId = overrideCustomerId !== undefined ? overrideCustomerId : selectedCustomerId;
+    const finalAmountPaid = overrideAmountPaid !== undefined ? overrideAmountPaid : Number(amountPaid);
+
     const saleData = {
       items: cart.map((item) => ({
         product: item.id,
         quantity: item.quantity,
         unit_price: item.selling_price,
       })),
-      customer: selectedCustomerId,
+      customer: finalCustomerId,
       payment_method: paymentMethod,
-      amount_paid: Number(amountPaid),
+      amount_paid: finalAmountPaid,
       loyalty_points_redeemed: loyaltyPointsToRedeem,
       tax_percentage: 16,
       order_type: orderType,
     };
-    await createSale.mutateAsync(saleData);
+    const response = await createSale.mutateAsync(saleData);
     
     setIsSuccess(true);
-    // setCart([]) // MOVED TO handleCheckout
     setTableNumber("");
     setSelectedCustomerId(null);
     setLoyaltyPointsToRedeem(0);
     setPaymentMethod("cash");
     setMpesaPhone("");
-    setTimeout(() => setIsSuccess(false), 3000);
+    
+    if (!showCashCheckoutModal) {
+      setTimeout(() => setIsSuccess(false), 3000);
+    }
+    return response;
   };
 
   const handleCheckout = async () => {
@@ -298,17 +473,9 @@ function PosPage() {
         setTableNumber("");
         setTimeout(() => setIsSuccess(false), 3000);
       } else if (paymentMethod === 'mpesa') {
-        if (!mpesaPhone) {
-          setIsError("Please enter an M-Pesa phone number");
-          return;
-        }
-        const response = await stkPush.mutateAsync({
-          phone: mpesaPhone,
-          amount: total,
-          // metadata could go here
-        });
-        setCheckoutRequestId(response.CheckoutRequestID);
-        setIsMpesaWaiting(true);
+        setShowMpesaCheckoutModal(true);
+        setMpesaActiveTab("stk");
+        refetchMpesaTxs();
       } else {
         await finalizeSale();
         // Print Receipt for Retail/Bar
@@ -653,6 +820,20 @@ function PosPage() {
         </div>
 
         {/* Cart Items */}
+        {cart.length > 0 && (
+          <div className="px-4 pt-4 flex items-center justify-between border-t border-border mt-4 shrink-0">
+            <span className="text-[10px] uppercase tracking-widest font-black text-muted-foreground ml-1">
+              Basket Items
+            </span>
+            <button
+              onClick={handleClearCartClick}
+              className="text-[10px] text-rose-500 hover:text-rose-600 font-black uppercase flex items-center gap-1 transition-all hover:scale-105 active:scale-95 bg-rose-500/5 px-2.5 py-1 rounded-lg border border-rose-500/10"
+            >
+              <Trash2 className="size-3" />
+              Clear Basket
+            </button>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20">
@@ -711,7 +892,7 @@ function PosPage() {
                           KES {(item.selling_price * item.quantity).toLocaleString()}
                         </div>
                         <button
-                          onClick={() => removeFromCart(item.id)}
+                          onClick={() => handleDeleteCartItem(item.id)}
                           className="text-[10px] text-rose-500 hover:text-rose-600 font-medium transition-colors mt-1"
                         >
                           Delete
@@ -812,7 +993,16 @@ function PosPage() {
             </div>
           </div>
           <button
-            onClick={handleCheckout}
+            onClick={() => {
+              if (paymentMethod === "cash" && activeSection !== "restaurant") {
+                setShowCashCheckoutModal(true);
+                setAmountPaidInput("");
+                setCustomerPhoneInput("");
+                setLastCheckoutResult(null);
+              } else {
+                handleCheckout();
+              }
+            }}
             disabled={cart.length === 0 || createSale.isPending}
             className={cn(
               "w-full mt-6 h-14 rounded-xl text-white font-bold uppercase tracking-widest shadow-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed flex items-center justify-center gap-3 group",
@@ -879,8 +1069,397 @@ function PosPage() {
           buyerPin={selectedCustomer?.tax_id}
           serialNumber={activeEtims?.serial_number}
           isEtimsEnabled={!!activeEtims}
+          customerName={lastCheckoutResult?.customerName || selectedCustomer?.name}
+          paymentMethod={paymentMethod}
+          amountPaid={lastCheckoutResult ? lastCheckoutResult.amountPaid : (amountPaid ? Number(amountPaid) : total)}
+          changeAmount={lastCheckoutResult ? lastCheckoutResult.changeGiven : (amountPaid ? Math.max(0, Number(amountPaid) - total) : 0)}
+          branchCode={(company as any)?.branch_code || (activeEtims as any)?.branch_code || "05"}
+          qrUrl={(lastCheckoutResult as any)?.qrUrl || (activeEtims as any)?.qr_code_url || (activeEtims as any)?.qr_url}
         />
       </div>
+
+      {/* Cash Checkout Modal */}
+      {showCashCheckoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-4 mb-4">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">
+                  Cash Payment Prompt
+                </h3>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
+                  Process cash drawer payment & receipt details
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCashCheckoutModal(false);
+                  setLastCheckoutResult(null);
+                }}
+                className="size-8 rounded-full bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-all font-bold grid place-items-center text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Success state */}
+            {lastCheckoutResult ? (
+              <div className="space-y-6 text-center py-6 animate-in fade-in zoom-in duration-200">
+                <div className="size-16 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 grid place-items-center mx-auto mb-4 animate-bounce">
+                  <CheckCircle2 className="size-8" />
+                </div>
+                <h4 className="text-xl font-bold uppercase tracking-tight text-foreground">
+                  Checkout Complete!
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
+                  <div className="p-3 bg-muted/30 border border-border rounded-xl">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">
+                      Amount Paid
+                    </div>
+                    <div className="text-lg font-extrabold text-foreground tabular-nums">
+                      KES {lastCheckoutResult.amountPaid.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                    <div className="text-[10px] uppercase font-bold text-emerald-500">
+                      Change Given
+                    </div>
+                    <div className="text-lg font-extrabold text-emerald-500 tabular-nums">
+                      KES {lastCheckoutResult.changeGiven.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {lastCheckoutResult.customerName && (
+                  <div className="text-xs text-muted-foreground font-semibold">
+                    Associated Customer: <span className="text-emerald-500 uppercase font-black">{lastCheckoutResult.customerName}</span>
+                  </div>
+                )}
+
+                {company?.link_cash_register && (
+                  <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl max-w-sm mx-auto text-blue-500 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 animate-pulse">
+                    <span>⚡ [Cash Register Drawer Opened]</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 max-w-sm mx-auto pt-4 border-t">
+                  <button
+                    onClick={async () => {
+                      if (billRef.current) {
+                        await printElement(billRef.current);
+                      }
+                    }}
+                    className="flex-1 h-12 bg-muted hover:bg-muted/80 text-foreground font-bold uppercase rounded-xl text-xs transition-all border border-border"
+                  >
+                    Print Receipt
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCashCheckoutModal(false);
+                      setLastCheckoutResult(null);
+                      executeClearCart();
+                    }}
+                    className="flex-1 h-12 bg-navy text-white hover:bg-navy/90 font-bold uppercase rounded-xl text-xs transition-all shadow-md"
+                  >
+                    New Sale
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Checkout Form state */
+              <div className="space-y-5">
+                {/* Amount Due Indicator */}
+                <div className="flex items-center justify-between p-4 bg-muted/40 rounded-2xl border border-border">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Total Amount Due
+                  </span>
+                  <span className="text-2xl font-black text-foreground tabular-nums">
+                    KES {total.toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Amount Paid Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground ml-1">
+                    Amount Paid By Customer
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                      KES
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      value={amountPaidInput}
+                      onChange={(e) => setAmountPaidInput(e.target.value)}
+                      className="w-full h-12 pl-12 pr-4 rounded-xl bg-background border border-border text-base font-extrabold tabular-nums outline-none focus:border-brass"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                {/* Change Given */}
+                <div className="flex items-center justify-between p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+                    Change to Return
+                  </span>
+                  <span className="text-xl font-black text-emerald-500 tabular-nums">
+                    KES {Math.max(0, Number(amountPaidInput || 0) - total).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Loyalty / Customer Linking (Optional) */}
+                <div className="space-y-2 border-t pt-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground ml-1">
+                      Associate Loyalty Customer (Optional)
+                    </label>
+                    {matchedCustomer && (
+                      <span className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Linked: {matchedCustomer.name}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={customerPhoneInput}
+                    onChange={(e) => setCustomerPhoneInput(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl bg-background border border-border text-xs outline-none focus:border-brass/40"
+                    placeholder="Enter phone number to earn points & print name..."
+                  />
+                  {customerPhoneInput && !matchedCustomer && (
+                    <p className="text-[10px] text-amber-500/80 font-semibold italic ml-1">
+                      No matching customer found with this phone number.
+                    </p>
+                  )}
+                  {matchedCustomer && (
+                    <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 text-[10px] font-medium leading-relaxed text-emerald-600 flex justify-between items-center animate-in slide-in-from-top-1">
+                      <span>Loyalty points balance:</span>
+                      <span className="font-extrabold">{matchedCustomer.loyalty_points} Points</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit button */}
+                <button
+                  disabled={createSale.isPending || !amountPaidInput || Number(amountPaidInput) < total}
+                  onClick={handleConfirmCashCheckout}
+                  className="w-full h-12 mt-4 bg-navy text-white hover:bg-navy/95 font-bold uppercase rounded-xl text-xs tracking-widest transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {createSale.isPending ? "Finalizing Checkout..." : "Confirm & Open Register Drawer"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Clear Basket PIN Pad Modal */}
+      {showClearCartPinPad && (
+        <PinPad
+          title="Manager Override"
+          description="Enter manager PIN to clear POS basket"
+          correctPin={company?.manager_pin || "0000"}
+          onSuccess={executeClearCart}
+          onCancel={() => setShowClearCartPinPad(false)}
+        />
+      )}
+
+      {/* Delete Item PIN Pad Modal */}
+      {showDeletePinPad && (
+        <PinPad
+          title="Manager Override"
+          description="Enter manager PIN to delete item"
+          correctPin={company?.manager_pin || "0000"}
+          onSuccess={() => {
+            if (itemToDelete !== null) {
+              removeFromCart(itemToDelete);
+              setItemToDelete(null);
+            }
+            setShowDeletePinPad(false);
+          }}
+          onCancel={() => {
+            setShowDeletePinPad(false);
+            setItemToDelete(null);
+          }}
+        />
+      )}
+
+      {/* M-Pesa Checkout Modal */}
+      {showMpesaCheckoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-card border border-border rounded-3xl overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-border flex items-center justify-between bg-emerald-950/20">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-emerald-500 flex items-center gap-2">
+                  <Smartphone className="size-4" /> M-Pesa Payment
+                </h3>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
+                  Amount Due: <span className="font-bold text-foreground">KES {total.toLocaleString()}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowMpesaCheckoutModal(false);
+                  setIsMpesaWaiting(false);
+                  setCheckoutRequestId(null);
+                }}
+                className="size-8 rounded-full bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-all font-bold grid place-items-center text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {lastCheckoutResult ? (
+              <div className="p-8 text-center animate-in fade-in zoom-in duration-200">
+                <div className="size-16 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 grid place-items-center mx-auto mb-4 animate-bounce">
+                  <CheckCircle2 className="size-8" />
+                </div>
+                <h4 className="text-xl font-bold uppercase tracking-tight text-foreground mb-4">
+                  Payment Successful!
+                </h4>
+                <div className="flex gap-3 max-w-sm mx-auto pt-4 border-t">
+                  <button
+                    onClick={() => {
+                      setShowMpesaCheckoutModal(false);
+                      setLastCheckoutResult(null);
+                      executeClearCart();
+                    }}
+                    className="flex-1 h-12 bg-navy text-white hover:bg-navy/90 font-bold uppercase rounded-xl text-xs transition-all shadow-md"
+                  >
+                    New Sale
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex border-b border-border bg-muted/10">
+                  <button
+                    onClick={() => setMpesaActiveTab("stk")}
+                    className={cn(
+                      "flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors border-b-2",
+                      mpesaActiveTab === "stk" ? "border-emerald-500 text-emerald-500" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                    )}
+                  >
+                    STK Push (Express)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMpesaActiveTab("verify");
+                      refetchMpesaTxs();
+                    }}
+                    className={cn(
+                      "flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors border-b-2",
+                      mpesaActiveTab === "verify" ? "border-emerald-500 text-emerald-500" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                    )}
+                  >
+                    Manual Verify (Paybill)
+                  </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto">
+                  {mpesaActiveTab === "stk" ? (
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">
+                          Customer M-Pesa Number
+                        </label>
+                        <div className="relative">
+                          <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            value={mpesaPhone}
+                            onChange={(e) => setMpesaPhone(e.target.value)}
+                            disabled={isMpesaWaiting}
+                            className="w-full h-12 pl-10 pr-4 rounded-xl bg-background border border-border text-sm font-medium outline-none focus:border-emerald-500 disabled:opacity-50"
+                            placeholder="e.g. 0712345678"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleStkPush}
+                        disabled={isMpesaWaiting || !mpesaPhone}
+                        className={cn(
+                          "w-full h-12 rounded-xl text-white font-bold uppercase tracking-widest shadow-xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2",
+                          isMpesaWaiting ? "bg-emerald-600 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
+                        )}
+                      >
+                        {isMpesaWaiting ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Awaiting Payment PIN...
+                          </>
+                        ) : (
+                          "Send Payment Prompt"
+                        )}
+                      </button>
+                      {isMpesaWaiting && (
+                        <p className="text-center text-[10px] text-muted-foreground font-medium uppercase tracking-widest animate-pulse">
+                          Customer is entering PIN on their phone
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                          Recent Transactions
+                        </p>
+                        <button 
+                          onClick={() => refetchMpesaTxs()}
+                          className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400 flex items-center gap-1"
+                        >
+                          <Loader2 className={cn("size-3", isFetchingMpesaTxs && "animate-spin")} />
+                          Refresh
+                        </button>
+                      </div>
+
+                      {isFetchingMpesaTxs && !mpesaTxData ? (
+                        <div className="py-8 flex justify-center">
+                          <Loader2 className="size-6 animate-spin text-emerald-500" />
+                        </div>
+                      ) : mpesaTxData?.results?.length === 0 ? (
+                        <div className="py-8 text-center border-2 border-dashed border-border rounded-xl">
+                          <p className="text-xs text-muted-foreground font-medium">No recent transactions found.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {mpesaTxData?.results?.slice(0, 5).map((tx: any) => (
+                            <div key={tx.id} className="p-3 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={cn("text-[8px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider", tx.status === 'SUCCESS' ? "bg-emerald-500/20 text-emerald-500" : "bg-amber-500/20 text-amber-500")}>
+                                    {tx.status}
+                                  </span>
+                                  <span className="text-xs font-mono font-bold text-foreground">
+                                    {tx.mpesa_receipt_number || "Pending"}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-muted-foreground font-medium">
+                                  {tx.phone_number} • KES {tx.amount}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleManualMpesaLink(tx)}
+                                disabled={tx.status !== 'SUCCESS'}
+                                className="h-8 px-3 rounded-lg bg-background border border-border text-[9px] font-bold uppercase tracking-widest text-foreground hover:border-emerald-500 hover:text-emerald-500 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                              >
+                                Link & Complete
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -78,11 +78,11 @@ function PurchasesPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6 bg-[#0A0D14] min-h-screen text-white">
+    <div className="flex-1 space-y-8 p-8 pt-6 bg-background min-h-screen text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h2 className="text-4xl font-display tracking-tight text-white flex items-center gap-4">
+          <h2 className="text-4xl font-display tracking-tight text-foreground flex items-center gap-4">
             <div className="size-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
                <ShoppingBag className="size-6" />
             </div>
@@ -105,13 +105,13 @@ function PurchasesPage() {
             </Button>
           )}
           {enableComplex && (
-            <Button variant="outline" className="border-white/10 bg-white/5 text-[10px] font-bold uppercase tracking-widest h-11 px-6 hover:bg-white/10 text-white">
+            <Button variant="outline" className="border-border bg-card text-[10px] font-bold uppercase tracking-widest h-11 px-6 hover:bg-muted text-foreground">
               <FileText className="size-4 mr-2" />
               Manage RFQs
             </Button>
           )}
           <Button 
-            className="bg-brass text-navy font-bold uppercase tracking-widest text-[10px] h-11 px-6 hover:bg-brass-light transition-all shadow-lg shadow-brass/20"
+            className="bg-navy text-white font-bold uppercase tracking-widest text-[10px] h-11 px-6 hover:bg-navy/90 transition-all shadow-lg shadow-navy/20"
             onClick={() => setIsPODialogOpen(true)}
           >
             <Plus className="size-4 mr-2" />
@@ -122,52 +122,52 @@ function PurchasesPage() {
 
       <div className="grid gap-6 md:grid-cols-4">
          {[
-           { label: "Ordered Value", value: `$${purchases.filter((p:any) => p.status === 'ordered').reduce((acc:any, p:any) => acc + Number(p.total), 0).toLocaleString()}`, icon: Tag, color: "text-blue-500" },
+           { label: "Ordered Value", value: `KES ${purchases.filter((p:any) => p.status === 'ordered').reduce((acc:any, p:any) => acc + Number(p.total), 0).toLocaleString()}`, icon: Tag, color: "text-blue-500" },
            { label: "Pending Deliveries", value: purchases.filter((p:any) => p.status === 'ordered').length, icon: Truck, color: "text-amber-500" },
            { label: "Total Received", value: purchases.filter((p:any) => p.status === 'received').length, icon: CheckCircle2, color: "text-emerald-500" },
            { label: "Draft POs", value: purchases.filter((p:any) => p.status === 'draft').length, icon: FileText, color: "text-slate-500" },
          ].map((stat, i) => (
-           <Card key={i} className="bg-white/[0.02] border-white/5 group hover:border-white/10 transition-all">
+           <Card key={i} className="bg-card border-border group hover:border-brass/40 transition-all">
              <CardContent className="p-6 flex items-center gap-4">
-                <div className={cn("size-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5", stat.color)}>
+                <div className={cn("size-10 rounded-xl bg-muted/50 flex items-center justify-center border border-border", stat.color)}>
                    <stat.icon className="size-5" />
                 </div>
                 <div>
                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{stat.label}</p>
-                   <h3 className="text-2xl font-display text-white">{stat.value}</h3>
+                   <h3 className="text-2xl font-display text-foreground">{stat.value}</h3>
                 </div>
              </CardContent>
            </Card>
          ))}
       </div>
 
-      <div className="rounded-3xl border border-white/5 bg-white/[0.01] overflow-hidden">
-         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+      <div className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm">
+         <div className="p-6 border-b border-border flex items-center justify-between bg-muted/20">
             <div className="flex items-center gap-4 flex-1 max-w-md">
                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                   <Input 
                     placeholder="Filter by PO # or Supplier..." 
-                    className="pl-10 bg-white/5 border-white/10 h-10 rounded-xl text-xs"
+                    className="pl-10 bg-background border-border h-10 rounded-xl text-xs"
                   />
                </div>
-               <Button variant="outline" size="icon" className="border-white/10 bg-white/5 h-10 w-10">
+               <Button variant="outline" size="icon" className="border-border bg-background h-10 w-10">
                   <Filter className="size-4" />
                </Button>
             </div>
             <div className="flex items-center gap-2">
-               <Button variant="ghost" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-white">
+               <Button variant="ghost" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground">
                   Active
                </Button>
-               <Button variant="ghost" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-white">
+               <Button variant="ghost" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground">
                   All History
                </Button>
             </div>
          </div>
 
          <Table>
-            <TableHeader className="bg-white/[0.01]">
-               <TableRow className="border-white/5">
+            <TableHeader className="bg-muted/30">
+               <TableRow className="border-border">
                   <TableHead className="text-[10px] uppercase font-bold tracking-widest">PO Details</TableHead>
                   <TableHead className="text-[10px] uppercase font-bold tracking-widest">Supplier</TableHead>
                   <TableHead className="text-[10px] uppercase font-bold tracking-widest">Order Value</TableHead>
@@ -178,15 +178,15 @@ function PurchasesPage() {
             <TableBody>
                {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i} className="border-white/5">
-                       <TableCell colSpan={5}><Skeleton className="h-12 w-full bg-white/5" /></TableCell>
+                    <TableRow key={i} className="border-border">
+                       <TableCell colSpan={5}><Skeleton className="h-12 w-full bg-muted" /></TableCell>
                     </TableRow>
                   ))
                ) : purchases.map((purchase: any) => (
-                 <TableRow key={purchase.id} className="border-white/5 hover:bg-white/[0.02] transition-colors">
+                 <TableRow key={purchase.id} className="border-border hover:bg-muted/20 transition-colors">
                     <TableCell>
                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-white uppercase tracking-tighter">#{purchase.po_number}</span>
+                          <span className="text-xs font-bold text-foreground uppercase tracking-tighter">#{purchase.po_number}</span>
                           <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground uppercase font-bold mt-1">
                              <Calendar className="size-3" />
                              {new Date(purchase.order_date).toLocaleDateString()}
@@ -195,15 +195,15 @@ function PurchasesPage() {
                     </TableCell>
                     <TableCell>
                        <div className="flex items-center gap-2.5">
-                          <div className="size-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5">
+                          <div className="size-8 rounded-lg bg-muted/50 flex items-center justify-center border border-border">
                              <Building2 className="size-4 text-brass" />
                           </div>
-                          <span className="text-[11px] font-bold text-white">{purchase.supplier_name}</span>
+                          <span className="text-[11px] font-bold text-foreground">{purchase.supplier_name}</span>
                        </div>
                     </TableCell>
                     <TableCell>
                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-white">${Number(purchase.total).toLocaleString()}</span>
+                          <span className="text-xs font-bold text-foreground">KES {Number(purchase.total).toLocaleString()}</span>
                           <span className="text-[9px] text-muted-foreground uppercase tracking-widest">{purchase.items?.length || 0} Products</span>
                        </div>
                     </TableCell>
@@ -216,7 +216,7 @@ function PurchasesPage() {
                        {purchase.status === 'ordered' ? (
                          <Button 
                            size="sm" 
-                           className="bg-emerald-500 text-navy text-[10px] font-bold uppercase h-8 px-4 hover:bg-emerald-400"
+                           className="bg-emerald-600 text-white text-[10px] font-bold uppercase h-8 px-4 hover:bg-emerald-700"
                            onClick={() => handleOpenReceive(purchase)}
                          >
                             <Truck className="size-3 mr-2" />

@@ -14,18 +14,20 @@ import {
   ShoppingBag,
   Info,
   ShieldCheck,
+  Wine,
 } from "lucide-react";
 import { useTables, useCompany, Table } from "@/lib/api-hooks";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/sales/settings")({
   component: SalesSettingsPage,
 });
 
 function SalesSettingsPage() {
-  const { data: company } = useCompany();
+  const { data: company, isLoading: loadingCompany } = useCompany();
   const { data: tableData, isLoading } = useTables();
   const tables = tableData?.results || [];
   const queryClient = useQueryClient();
@@ -76,12 +78,16 @@ function SalesSettingsPage() {
 
   const updateCompanySettings = useMutation({
     mutationFn: async (data: any) => {
-      const { data: response } = await api.put("/api/v1/company/", data);
+      const { data: response } = await api.patch("/api/v1/company/", data);
       return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company"] });
+      toast.success("Settings updated successfully");
     },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || error.message || "Failed to update settings");
+    }
   });
 
   const handleEdit = (table: Table) => {
@@ -92,6 +98,15 @@ function SalesSettingsPage() {
       capacity: table.capacity,
     });
   };
+
+  if (isLoading || loadingCompany) {
+    return (
+      <div className="h-[400px] flex flex-col items-center justify-center gap-4 text-muted-foreground">
+        <Loader2 className="size-10 animate-spin text-primary" />
+        <p className="font-serif italic">Loading settings...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8">
@@ -355,6 +370,66 @@ function SalesSettingsPage() {
                 pricing structures.
               </p>
             </div>
+
+            <div className="p-6 rounded-2xl border border-border bg-card hover:border-brass/30 transition-all group">
+              <div className="flex items-start justify-between mb-4">
+                <div className="size-10 rounded-xl bg-brass/5 border border-brass/10 flex items-center justify-center text-brass">
+                  <Utensils className="size-5" />
+                </div>
+                <button
+                  onClick={() =>
+                    updateCompanySettings.mutate({
+                      enable_restaurant_mode: !company?.enable_restaurant_mode,
+                    })
+                  }
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    company?.enable_restaurant_mode ? "bg-emerald-500" : "bg-muted",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-1 size-4 rounded-full bg-white transition-all shadow-sm",
+                      company?.enable_restaurant_mode ? "right-1" : "left-1",
+                    )}
+                  />
+                </button>
+              </div>
+              <h3 className="font-bold text-foreground">Restaurant Mode</h3>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                Enable table management, KDS, dining sessions, and print order tickets to kitchen stations.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl border border-border bg-card hover:border-brass/30 transition-all group">
+              <div className="flex items-start justify-between mb-4">
+                <div className="size-10 rounded-xl bg-brass/5 border border-brass/10 flex items-center justify-center text-brass">
+                  <Wine className="size-5" />
+                </div>
+                <button
+                  onClick={() =>
+                    updateCompanySettings.mutate({
+                      enable_bar_mode: !company?.enable_bar_mode,
+                    })
+                  }
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    company?.enable_bar_mode ? "bg-emerald-500" : "bg-muted",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-1 size-4 rounded-full bg-white transition-all shadow-sm",
+                      company?.enable_bar_mode ? "right-1" : "left-1",
+                    )}
+                  />
+                </button>
+              </div>
+              <h3 className="font-bold text-foreground">Bar & Drinks Mode</h3>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                Enable beverage-specific menus, specialized drink categorization, and counter service POS.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -370,9 +445,96 @@ function SalesSettingsPage() {
                 <div className="font-medium">Tax-Inclusive Pricing</div>
                 <div className="text-sm text-muted-foreground">Prices shown include VAT (16%)</div>
               </div>
-              <div className="h-6 w-11 rounded-full bg-primary relative cursor-pointer">
-                <div className="absolute right-1 top-1 size-4 rounded-full bg-white shadow-sm" />
+              <button
+                onClick={() =>
+                  updateCompanySettings.mutate({
+                    tax_inclusive_pricing: !company?.tax_inclusive_pricing,
+                  })
+                }
+                className={cn(
+                  "w-12 h-6 rounded-full transition-all relative",
+                  company?.tax_inclusive_pricing ? "bg-emerald-500" : "bg-muted",
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 size-4 rounded-full bg-white transition-all shadow-sm",
+                    company?.tax_inclusive_pricing ? "right-1" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+              <div>
+                <div className="font-medium">Require Manager PIN to Clear Cart</div>
+                <div className="text-sm text-muted-foreground">Locks the sales basket; requires override to empty</div>
               </div>
+              <button
+                onClick={() =>
+                  updateCompanySettings.mutate({
+                    require_manager_to_clear_cart: !company?.require_manager_to_clear_cart,
+                  })
+                }
+                className={cn(
+                  "w-12 h-6 rounded-full transition-all relative",
+                  company?.require_manager_to_clear_cart ? "bg-emerald-500" : "bg-muted",
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 size-4 rounded-full bg-white transition-all shadow-sm",
+                    company?.require_manager_to_clear_cart ? "right-1" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
+
+            {company?.require_manager_to_clear_cart && (
+              <div className="flex items-center justify-between p-4 rounded-xl border bg-card animate-in slide-in-from-top-2 duration-200">
+                <div>
+                  <div className="font-medium">Manager Override PIN</div>
+                  <div className="text-sm text-muted-foreground">4-digit security code for clear overrides</div>
+                </div>
+                <input
+                  type="text"
+                  maxLength={4}
+                  pattern="\d{4}"
+                  defaultValue={company?.manager_pin || "0000"}
+                  onBlur={(e) => {
+                    const val = e.target.value;
+                    if (val.length === 4 && /^\d+$/.test(val)) {
+                      updateCompanySettings.mutate({ manager_pin: val });
+                    }
+                  }}
+                  className="w-20 h-10 px-3 text-center text-sm font-bold tracking-widest rounded-lg bg-muted border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+              <div>
+                <div className="font-medium">Link POS Cash Payments to Register Drawer</div>
+                <div className="text-sm text-muted-foreground">Opens the cash drawer automatically on completion</div>
+              </div>
+              <button
+                onClick={() =>
+                  updateCompanySettings.mutate({
+                    link_cash_register: !company?.link_cash_register,
+                  })
+                }
+                className={cn(
+                  "w-12 h-6 rounded-full transition-all relative",
+                  company?.link_cash_register ? "bg-emerald-500" : "bg-muted",
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 size-4 rounded-full bg-white transition-all shadow-sm",
+                    company?.link_cash_register ? "right-1" : "left-1",
+                  )}
+                />
+              </button>
             </div>
             <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
               <div>

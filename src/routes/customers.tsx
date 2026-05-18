@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { 
   Users, 
@@ -20,7 +20,10 @@ import {
   useCustomers, 
   useDebtPayments, 
   useLoyaltyTransactions, 
-  useRecordDebtPayment 
+  useRecordDebtPayment,
+  useCreateCustomer,
+  useUpdateCustomer,
+  useDeleteCustomer
 } from "@/lib/api-hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +77,10 @@ function CustomersDashboard() {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isHistorySheetOpen, setIsHistorySheetOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [customerToEdit, setCustomerToEdit] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<any>(null);
 
   const { data: customersData, isLoading } = useCustomers({ search: searchTerm });
   const customers = customersData?.results || [];
@@ -111,7 +118,13 @@ function CustomersDashboard() {
               className="w-full h-11 pl-10 pr-4 rounded-xl bg-card border border-border text-sm focus:border-brass/60 outline-none transition-all shadow-sm"
             />
           </div>
-          <Button className="h-11 px-6 rounded-xl bg-navy text-brass-light font-bold uppercase tracking-widest text-xs flex items-center gap-2 hover:bg-navy/90 transition-all shadow-lg">
+          <Button 
+            onClick={() => {
+              setCustomerToEdit(null);
+              setIsFormDialogOpen(true);
+            }}
+            className="h-11 px-6 rounded-xl bg-navy text-brass-light font-bold uppercase tracking-widest text-xs flex items-center gap-2 hover:bg-navy/90 transition-all shadow-lg"
+          >
             <Plus className="size-4" />
             New Customer
           </Button>
@@ -245,8 +258,24 @@ function CustomersDashboard() {
                           Record Payment
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 cursor-pointer">
+                        <DropdownMenuItem 
+                          className="gap-2 cursor-pointer" 
+                          onClick={() => {
+                            setCustomerToEdit(customer);
+                            setIsFormDialogOpen(true);
+                          }}
+                        >
                           Edit Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="gap-2 cursor-pointer text-rose-500 hover:text-rose-600 focus:text-rose-600 focus:bg-rose-500/10" 
+                          onClick={() => {
+                            setCustomerToDelete(customer);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          Delete Customer
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -270,6 +299,20 @@ function CustomersDashboard() {
         isOpen={isHistorySheetOpen} 
         setIsOpen={setIsHistorySheetOpen} 
         customer={selectedCustomer} 
+      />
+
+      {/* Customer Form (Create / Edit) Dialog */}
+      <CustomerFormDialog 
+        isOpen={isFormDialogOpen} 
+        setIsOpen={setIsFormDialogOpen} 
+        customer={customerToEdit} 
+      />
+
+      {/* Customer Delete Dialog */}
+      <CustomerDeleteDialog 
+        isOpen={isDeleteDialogOpen} 
+        setIsOpen={setIsDeleteDialogOpen} 
+        customer={customerToDelete} 
       />
     </div>
   );
@@ -504,5 +547,217 @@ function CustomerHistorySheet({ isOpen, setIsOpen, customer }: any) {
         </Tabs>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function CustomerFormDialog({ isOpen, setIsOpen, customer }: { isOpen: boolean; setIsOpen: (open: boolean) => void; customer?: any }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [creditLimit, setCreditLimit] = useState("");
+  const [taxId, setTaxId] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+
+  useEffect(() => {
+    if (customer) {
+      setName(customer.name || "");
+      setEmail(customer.email || "");
+      setPhone(customer.phone || "");
+      setAddress(customer.address || "");
+      setCreditLimit(customer.credit_limit || "0.00");
+      setTaxId(customer.tax_id || "");
+      setNotes(customer.notes || "");
+    } else {
+      setName("");
+      setEmail("");
+      setPhone("");
+      setAddress("");
+      setCreditLimit("0.00");
+      setTaxId("");
+      setNotes("");
+    }
+  }, [customer, isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !phone) {
+      toast.error("Name and Phone Number are required");
+      return;
+    }
+
+    const payload = {
+      name,
+      email: email || null,
+      phone,
+      address: address || null,
+      credit_limit: parseFloat(creditLimit) || 0,
+      tax_id: taxId || null,
+      notes: notes || null,
+    };
+
+    try {
+      if (customer) {
+        await updateCustomer.mutateAsync({ id: customer.id, data: payload });
+        toast.success(`Customer "${name}" successfully updated`);
+      } else {
+        await createCustomer.mutateAsync(payload);
+        toast.success(`Customer "${name}" successfully registered`);
+      }
+      setIsOpen(false);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.response?.data?.phone?.[0] || "Failed to save customer");
+    }
+  };
+
+  const isPending = createCustomer.isPending || updateCustomer.isPending;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="rounded-2xl border-border max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl">{customer ? "Edit Customer Profile" : "Register New Customer"}</DialogTitle>
+          <DialogDescription className="italic font-serif">
+            {customer ? `Modifying profile details for ${customer.name}` : "Create a new profile in the CRM database"}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Full Name *</label>
+              <Input 
+                value={name} 
+                onChange={(e) => setName(e.target.value)}
+                className="h-11 rounded-lg bg-muted/20 border-border focus:border-brass/60 focus:ring-0"
+                placeholder="e.g. John Doe"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Phone Number *</label>
+              <Input 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)}
+                className="h-11 rounded-lg bg-muted/20 border-border focus:border-brass/60 focus:ring-0"
+                placeholder="e.g. +254 700 000 000"
+                required
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email Address</label>
+              <Input 
+                type="email"
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-11 rounded-lg bg-muted/20 border-border focus:border-brass/60 focus:ring-0"
+                placeholder="e.g. name@domain.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Credit Limit</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">KES</span>
+                <Input 
+                  type="number"
+                  value={creditLimit} 
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                  className="pl-12 h-11 rounded-lg bg-muted/20 border-border focus:border-brass/60 focus:ring-0"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">eTIMS Buyer PIN / Tax ID</label>
+              <Input 
+                value={taxId} 
+                onChange={(e) => setTaxId(e.target.value)}
+                className="h-11 rounded-lg bg-muted/20 border-border focus:border-brass/60 focus:ring-0"
+                placeholder="e.g. A001234567Z"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Physical Address</label>
+            <Input 
+              value={address} 
+              onChange={(e) => setAddress(e.target.value)}
+              className="h-11 rounded-lg bg-muted/20 border-border focus:border-brass/60 focus:ring-0"
+              placeholder="e.g. Suite 4B, Plaza One, Nairobi"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Internal Notes (Optional)</label>
+            <textarea 
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full p-3 rounded-lg bg-muted/20 border border-border text-sm focus:border-brass/60 outline-none resize-none h-20"
+              placeholder="Important information, preferences, or terms"
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              type="submit" 
+              className="w-full h-12 rounded-xl bg-navy text-brass-light font-bold uppercase tracking-widest text-xs shadow-lg"
+              disabled={isPending}
+            >
+              {isPending ? <Loader2 className="size-4 animate-spin mr-2" /> : <Plus className="size-4 mr-2" />}
+              {customer ? "Save Changes" : "Register Customer"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CustomerDeleteDialog({ isOpen, setIsOpen, customer }: { isOpen: boolean; setIsOpen: (open: boolean) => void; customer?: any }) {
+  const deleteCustomer = useDeleteCustomer();
+
+  const handleDelete = async () => {
+    if (!customer) return;
+    try {
+      await deleteCustomer.mutateAsync(customer.id);
+      toast.success(`Customer "${customer.name}" deleted successfully`);
+      setIsOpen(false);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to delete customer");
+    }
+  };
+
+  if (!customer) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="rounded-2xl border-border max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl text-rose-500">Delete Customer Profile</DialogTitle>
+          <DialogDescription className="italic font-serif">
+            This action cannot be undone. All outstanding debt history for {customer.name} will be permanently archived.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 text-sm text-muted-foreground">
+          Are you sure you want to delete <strong>{customer.name}</strong> from the system?
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={() => setIsOpen(false)} className="rounded-xl border border-border h-11 px-4">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDelete} 
+            className="h-11 px-6 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold uppercase tracking-widest text-xs"
+            disabled={deleteCustomer.isPending}
+          >
+            {deleteCustomer.isPending ? <Loader2 className="size-4 animate-spin mr-2" /> : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

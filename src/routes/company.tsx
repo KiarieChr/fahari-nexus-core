@@ -25,7 +25,8 @@ import {
 import { companyApi, Company, Branch } from "@/api/company";
 import { integrationsApi, MpesaConfig, BankConfig, EtimsConfig } from "@/api/integrations";
 import { toast } from "sonner";
-import { useUserProfile, useLoadLocations } from "@/lib/api-hooks";
+import { useUserProfile, useLoadLocations, useBranches } from "@/lib/api-hooks";
+import { BranchDialog } from "@/components/company/BranchDialog";
 
 export const Route = createFileRoute("/company")({
   component: CompanyPage,
@@ -37,14 +38,21 @@ function CompanyPage() {
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [isEditingFeatures, setIsEditingFeatures] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [mpesa, setMpesa] = useState<MpesaConfig | null>(null);
   const [etims, setEtims] = useState<EtimsConfig | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isMpesaLocked, setIsMpesaLocked] = useState(true);
   const [isEtimsLocked, setIsEtimsLocked] = useState(true);
 
+  // Branch Dialog state
+  const [isBranchDialogOpen, setIsBranchDialogOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+
   const { data: profile } = useUserProfile();
+  const { data: branchesData } = useBranches();
+  const branches: Branch[] = Array.isArray(branchesData)
+    ? branchesData
+    : (branchesData as any)?.results || [];
   const loadLocations = useLoadLocations();
 
   useEffect(() => {
@@ -74,12 +82,8 @@ function CompanyPage() {
     setLoading(true);
     console.log("[CompanyPage] Starting data fetch...");
     try {
-      const [compRes, branchRes, mpesaRes, etimsRes] = await Promise.all([
+      const [compRes, mpesaRes, etimsRes] = await Promise.all([
         companyApi.getCompany(),
-        companyApi.getBranches().catch((err) => {
-          console.warn("[CompanyPage] Branches fetch failed:", err);
-          return { data: [] };
-        }),
         integrationsApi.getMpesaConfig().catch((err) => {
           console.warn("[CompanyPage] M-Pesa fetch failed:", err);
           return { data: [] };
@@ -92,12 +96,6 @@ function CompanyPage() {
 
       console.log("[CompanyPage] Company Data received:", compRes.data);
       setCompany(compRes.data);
-
-      // Handle paginated branches
-      const branchData = Array.isArray(branchRes.data)
-        ? branchRes.data
-        : (branchRes.data as any).results || [];
-      setBranches(branchData);
 
       console.log("[CompanyPage] M-Pesa Response:", mpesaRes.data);
       // Handle paginated M-Pesa config
@@ -553,7 +551,14 @@ function CompanyPage() {
         <TabsContent value="branches" className="space-y-8 animate-in fade-in-50 duration-500">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Store Locations</h2>
-            <Button size="lg" className="gap-2 shadow-sm">
+            <Button
+              size="lg"
+              className="gap-2 shadow-sm"
+              onClick={() => {
+                setSelectedBranch(null);
+                setIsBranchDialogOpen(true);
+              }}
+            >
               <Plus className="w-4 h-4" /> Add New Branch
             </Button>
           </div>
@@ -578,15 +583,31 @@ function CompanyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <div className="p-1.5 bg-muted rounded-full">
-                      <MapPin className="w-4 h-4" />
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap font-sans">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-muted rounded-full">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <span className="truncate max-w-[200px]">{branch.address || branch.city || "No address set"}</span>
                     </div>
-                    {branch.city || "No location set"}
+                    {branch.email && (
+                      <div className="text-xs text-muted-foreground w-full truncate pl-9 mt-1">
+                        {branch.email}
+                      </div>
+                    )}
+                    {branch.phone_number && (
+                      <div className="text-xs text-muted-foreground w-full truncate pl-9">
+                        {branch.phone_number}
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="outline"
                     className="w-full mt-4 h-11 border-primary/20 hover:bg-primary/5 transition-colors"
+                    onClick={() => {
+                      setSelectedBranch(branch);
+                      setIsBranchDialogOpen(true);
+                    }}
                   >
                     Manage Branch
                   </Button>
@@ -601,7 +622,14 @@ function CompanyPage() {
                   Expand your business by adding your first physical store location or distribution
                   center.
                 </p>
-                <Button variant="outline" className="mt-8 gap-2">
+                <Button
+                  variant="outline"
+                  className="mt-8 gap-2"
+                  onClick={() => {
+                    setSelectedBranch(null);
+                    setIsBranchDialogOpen(true);
+                  }}
+                >
                   <Plus className="w-4 h-4" /> Initialize First Branch
                 </Button>
               </div>
@@ -848,6 +876,11 @@ function CompanyPage() {
           </div>
         </TabsContent>
       </Tabs>
+      <BranchDialog
+        open={isBranchDialogOpen}
+        onOpenChange={setIsBranchDialogOpen}
+        branch={selectedBranch}
+      />
     </div>
   );
 }

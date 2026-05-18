@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUsers, useCreateUser, useUpdateUser, useRoles } from "@/lib/api-hooks";
 import { Loader2, Plus, Users, Search, Shield, Building, UserCheck } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/settings_/users")({
 });
 
 function UsersManagementPage() {
+  const queryClient = useQueryClient();
   const { data: users, isLoading } = useUsers();
   const { data: roles } = useRoles();
   const createUser = useCreateUser();
@@ -68,7 +70,7 @@ function UsersManagementPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = { ...formData };
+      const payload: any = { ...formData };
       if (!payload.password) delete payload.password; // don't send empty pass
       
       if (editingId) {
@@ -79,6 +81,7 @@ function UsersManagementPage() {
         toast.success("User created successfully");
       }
       setIsModalOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["employees"] });
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to save user");
     }

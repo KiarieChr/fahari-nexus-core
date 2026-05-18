@@ -24,6 +24,7 @@ import {
   History,
   TrendingUp,
   ExternalLink,
+  Table as TableIcon,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { 
@@ -91,6 +92,10 @@ function SettingsPage() {
     enable_bar_mode: false,
     enable_hr_module: false,
     enable_accommodation_module: false,
+    tax_inclusive_pricing: false,
+    require_manager_to_clear_cart: false,
+    manager_pin: "0000",
+    link_cash_register: false,
   });
 
   const [invForm, setInvForm] = useState({
@@ -139,6 +144,10 @@ function SettingsPage() {
         enable_bar_mode: company.enable_bar_mode || false,
         enable_hr_module: company.enable_hr_module || false,
         enable_accommodation_module: company.enable_accommodation_module || false,
+        tax_inclusive_pricing: company.tax_inclusive_pricing || false,
+        require_manager_to_clear_cart: company.require_manager_to_clear_cart || false,
+        manager_pin: company.manager_pin || "0000",
+        link_cash_register: company.link_cash_register || false,
       });
     }
   }, [company]);
@@ -213,6 +222,10 @@ function SettingsPage() {
               enable_bar_mode: companyForm.enable_bar_mode,
               enable_hr_module: companyForm.enable_hr_module,
               enable_accommodation_module: companyForm.enable_accommodation_module,
+              tax_inclusive_pricing: companyForm.tax_inclusive_pricing,
+              require_manager_to_clear_cart: companyForm.require_manager_to_clear_cart,
+              manager_pin: companyForm.manager_pin,
+              link_cash_register: companyForm.link_cash_register,
             }
           : {
               name: companyForm.name,
@@ -712,6 +725,112 @@ function SettingsPage() {
                           }`}
                         />
                       </button>
+                    </div>
+
+                    <div className="border-t border-border pt-8 mt-8">
+                      <div className="flex items-center gap-2 mb-6">
+                        <TableIcon className="size-5 text-brass" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-brass">Terminal Settings</h3>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/30 transition-all">
+                          <div>
+                            <h4 className="text-sm font-bold text-foreground">Tax-Inclusive Pricing</h4>
+                            <p className="text-xs text-muted-foreground mt-1">Prices shown include VAT (16%)</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCompanyForm({
+                                ...companyForm,
+                                tax_inclusive_pricing: !companyForm.tax_inclusive_pricing,
+                              })
+                            }
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              companyForm.tax_inclusive_pricing ? "bg-brass" : "bg-muted-foreground/30"
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                companyForm.tax_inclusive_pricing ? "translate-x-5" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/30 transition-all">
+                          <div>
+                            <h4 className="text-sm font-bold text-foreground">Require Manager PIN to Clear Cart</h4>
+                            <p className="text-xs text-muted-foreground mt-1">Locks the sales basket; requires override to empty</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCompanyForm({
+                                ...companyForm,
+                                require_manager_to_clear_cart: !companyForm.require_manager_to_clear_cart,
+                              })
+                            }
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              companyForm.require_manager_to_clear_cart ? "bg-brass" : "bg-muted-foreground/30"
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                companyForm.require_manager_to_clear_cart ? "translate-x-5" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {companyForm.require_manager_to_clear_cart && (
+                          <div className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/30 transition-all animate-in slide-in-from-top-2 duration-200">
+                            <div>
+                              <h4 className="text-sm font-bold text-foreground">Manager Override PIN</h4>
+                              <p className="text-xs text-muted-foreground mt-1">4-digit security code for clear overrides</p>
+                            </div>
+                            <input
+                              type="text"
+                              maxLength={4}
+                              pattern="\d{4}"
+                              value={companyForm.manager_pin}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (/^\d*$/.test(val)) {
+                                  setCompanyForm({ ...companyForm, manager_pin: val });
+                                }
+                              }}
+                              className="w-20 h-10 px-3 text-center text-sm font-bold tracking-widest rounded-lg bg-muted border border-border focus:outline-none focus:ring-2 focus:ring-brass/20 text-foreground"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between p-6 rounded-2xl border border-border bg-muted/10 hover:border-brass/30 transition-all">
+                          <div>
+                            <h4 className="text-sm font-bold text-foreground">Link POS Cash Payments to Register Drawer</h4>
+                            <p className="text-xs text-muted-foreground mt-1">Opens the cash drawer automatically on completion</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCompanyForm({
+                                ...companyForm,
+                                link_cash_register: !companyForm.link_cash_register,
+                              })
+                            }
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              companyForm.link_cash_register ? "bg-brass" : "bg-muted-foreground/30"
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                companyForm.link_cash_register ? "translate-x-5" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="p-8 bg-muted/10 border-t border-border flex justify-end">

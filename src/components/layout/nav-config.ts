@@ -45,6 +45,7 @@ export const navSections: NavSection[] = [
       { label: "Batches", to: "/inventory/batches" },
       { label: "Stock Adjustments", to: "/inventory/adjustments" },
       { label: "Stock Transfers", to: "/inventory/transfers" },
+      { id: "recipes", label: "Recipe Management", to: "/inventory/recipes" },
       { label: "Inventory Settings", to: "/inventory/settings" },
     ],
   },

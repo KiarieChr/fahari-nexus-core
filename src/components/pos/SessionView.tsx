@@ -26,6 +26,7 @@ import {
   useActiveSession,
   useCheckoutSession,
   useCreateDiningSession,
+  useCompany,
 } from "@/lib/api-hooks";
 import { KOTTemplate } from "./KOTTemplate";
 
@@ -163,9 +164,16 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
     }
   };
 
+  const { data: company } = useCompany();
+  const isTaxInclusive = company?.tax_inclusive_pricing ?? true;
+
   const rounds = Array.from(new Set(orderHistory.map((item) => item.round))).sort((a, b) => b - a);
   const subtotal = orderHistory.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const draftTotal = draftItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const billSubtotal = subtotal + draftTotal;
+  const billTax = isTaxInclusive ? (billSubtotal * 16) / 116 : billSubtotal * 0.16;
+  const billTotal = isTaxInclusive ? billSubtotal : billSubtotal + billTax;
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-background overflow-hidden">
@@ -515,6 +523,10 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
       <div className="hidden">
         <BillTemplate
           ref={billRef}
+          businessName={company?.name}
+          address={company?.primary_address}
+          phone={company?.phone_number}
+          logoUrl={company?.logo}
           tableNumber={tableNumber}
           waiterName="John Doe"
           staffName="John Doe"
@@ -524,8 +536,9 @@ export const SessionView: React.FC<SessionViewProps> = ({ tableNumber, onBack })
             quantity: item.quantity,
             price: item.price,
           }))}
-          subtotal={subtotal + draftTotal}
-          total={subtotal + draftTotal}
+          subtotal={billSubtotal}
+          tax={billTax}
+          total={billTotal}
         />
         <KOTTemplate
           ref={kotRef}

@@ -37,6 +37,7 @@ import { Route as ProcurementInspectionsRouteImport } from './routes/procurement
 import { Route as ProcurementGrnsRouteImport } from './routes/procurement/grns'
 import { Route as InventoryTransfersRouteImport } from './routes/inventory/transfers'
 import { Route as InventorySettingsRouteImport } from './routes/inventory/settings'
+import { Route as InventoryRecipesRouteImport } from './routes/inventory/recipes'
 import { Route as InventoryProductsRouteImport } from './routes/inventory/products'
 import { Route as InventoryCategoriesRouteImport } from './routes/inventory/categories'
 import { Route as InventoryBatchesRouteImport } from './routes/inventory/batches'
@@ -189,6 +190,11 @@ const InventorySettingsRoute = InventorySettingsRouteImport.update({
   path: '/inventory/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InventoryRecipesRoute = InventoryRecipesRouteImport.update({
+  id: '/inventory/recipes',
+  path: '/inventory/recipes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryProductsRoute = InventoryProductsRouteImport.update({
   id: '/inventory/products',
   path: '/inventory/products',
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/inventory/batches': typeof InventoryBatchesRoute
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/recipes': typeof InventoryRecipesRoute
   '/inventory/settings': typeof InventorySettingsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
   '/procurement/grns': typeof ProcurementGrnsRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByTo {
   '/inventory/batches': typeof InventoryBatchesRoute
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/recipes': typeof InventoryRecipesRoute
   '/inventory/settings': typeof InventorySettingsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
   '/procurement/grns': typeof ProcurementGrnsRoute
@@ -351,6 +359,7 @@ export interface FileRoutesById {
   '/inventory/batches': typeof InventoryBatchesRoute
   '/inventory/categories': typeof InventoryCategoriesRoute
   '/inventory/products': typeof InventoryProductsRoute
+  '/inventory/recipes': typeof InventoryRecipesRoute
   '/inventory/settings': typeof InventorySettingsRoute
   '/inventory/transfers': typeof InventoryTransfersRoute
   '/procurement/grns': typeof ProcurementGrnsRoute
@@ -394,6 +403,7 @@ export interface FileRouteTypes {
     | '/inventory/batches'
     | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/recipes'
     | '/inventory/settings'
     | '/inventory/transfers'
     | '/procurement/grns'
@@ -434,6 +444,7 @@ export interface FileRouteTypes {
     | '/inventory/batches'
     | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/recipes'
     | '/inventory/settings'
     | '/inventory/transfers'
     | '/procurement/grns'
@@ -475,6 +486,7 @@ export interface FileRouteTypes {
     | '/inventory/batches'
     | '/inventory/categories'
     | '/inventory/products'
+    | '/inventory/recipes'
     | '/inventory/settings'
     | '/inventory/transfers'
     | '/procurement/grns'
@@ -517,6 +529,7 @@ export interface RootRouteChildren {
   InventoryBatchesRoute: typeof InventoryBatchesRoute
   InventoryCategoriesRoute: typeof InventoryCategoriesRoute
   InventoryProductsRoute: typeof InventoryProductsRoute
+  InventoryRecipesRoute: typeof InventoryRecipesRoute
   InventorySettingsRoute: typeof InventorySettingsRoute
   InventoryTransfersRoute: typeof InventoryTransfersRoute
   ProcurementGrnsRoute: typeof ProcurementGrnsRoute
@@ -729,6 +742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventorySettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inventory/recipes': {
+      id: '/inventory/recipes'
+      path: '/inventory/recipes'
+      fullPath: '/inventory/recipes'
+      preLoaderRoute: typeof InventoryRecipesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/products': {
       id: '/inventory/products'
       path: '/inventory/products'
@@ -849,6 +869,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryBatchesRoute: InventoryBatchesRoute,
   InventoryCategoriesRoute: InventoryCategoriesRoute,
   InventoryProductsRoute: InventoryProductsRoute,
+  InventoryRecipesRoute: InventoryRecipesRoute,
   InventorySettingsRoute: InventorySettingsRoute,
   InventoryTransfersRoute: InventoryTransfersRoute,
   ProcurementGrnsRoute: ProcurementGrnsRoute,

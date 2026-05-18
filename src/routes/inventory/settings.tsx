@@ -17,7 +17,8 @@ import {
   Boxes,
   Store,
   Wine,
-  Utensils
+  Utensils,
+  Volume2
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -43,6 +44,8 @@ export const Route = createFileRoute("/inventory/settings")({
   }),
   component: InventorySettingsPage,
 });
+
+import { playAlertSound } from "@/lib/utils";
 
 function InventorySettingsPage() {
   const { data: settings, isLoading } = useInventorySettings();
@@ -186,6 +189,38 @@ function InventorySettingsPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-medium flex items-center gap-2">
+                    <Store className="size-3 text-emerald-400" />
+                    Retail & POS Mode
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground italic">Enable standard shop B2C checkout and barcode terminal</p>
+                </div>
+                <Switch 
+                  checked={company?.enable_retail_mode} 
+                  onCheckedChange={async (v) => {
+                    await updateCompany.mutateAsync({ ...company, enable_retail_mode: v });
+                  }} 
+                />
+              </div>
+              <Separator className="bg-white/5" />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <ShieldCheck className="size-3 text-blue-400" />
+                    Wholesale & B2B Mode
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground italic">Enable bulk sales, tier pricing, and customer credit ledger</p>
+                </div>
+                <Switch 
+                  checked={company?.enable_wholesale_mode} 
+                  onCheckedChange={async (v) => {
+                    await updateCompany.mutateAsync({ ...company, enable_wholesale_mode: v });
+                  }} 
+                />
+              </div>
+              <Separator className="bg-white/5" />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium flex items-center gap-2">
                     <Utensils className="size-3 text-orange-400" />
                     Restaurant Mode
                   </Label>
@@ -270,6 +305,42 @@ function InventorySettingsPage() {
                     className="bg-rose-500/10 border-rose-500/20 w-24 text-rose-500" 
                   />
                   <p className="text-[10px] text-muted-foreground italic leading-tight">High-priority alerts for imminent expiration</p>
+                </div>
+              </div>
+              <Separator className="bg-white/5" />
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Notification Sound Effect</Label>
+                <div className="flex items-center gap-3">
+                  <Select 
+                    value={form.alert_sound || "chime"} 
+                    onValueChange={(v) => {
+                      setForm({...form, alert_sound: v});
+                      playAlertSound(v);
+                    }}
+                  >
+                    <SelectTrigger className="bg-white/5 border-white/10 w-44 text-white">
+                      <SelectValue placeholder="Select Sound" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-navy border-white/10 text-white">
+                      <SelectItem value="off">Mute / None 🔇</SelectItem>
+                      <SelectItem value="chime">Classic Chime 🔔</SelectItem>
+                      <SelectItem value="bell">Reception Bell 🛎️</SelectItem>
+                      <SelectItem value="beep">Digital Beep ⚡</SelectItem>
+                      <SelectItem value="ping">Modern Ping 💬</SelectItem>
+                      <SelectItem value="swoosh">Subtle Swoosh 💨</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => playAlertSound(form.alert_sound || "chime")}
+                    disabled={!form.alert_sound || form.alert_sound === 'off'}
+                    className="border-white/10 hover:bg-white/5 text-brass hover:text-brass-light active:scale-95 transition-all"
+                  >
+                    <Volume2 className="size-4" />
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground italic leading-tight">Play audio cues on stock and expiry warnings</p>
                 </div>
               </div>
             </CardContent>

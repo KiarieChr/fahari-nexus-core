@@ -222,13 +222,15 @@ function OverviewPage() {
                 Clock In / Out
               </Link>
             )}
-            <Link
-              to="/pos"
-              className="group flex items-center gap-2 px-6 py-2.5 rounded bg-navy text-brass-light font-bold uppercase tracking-widest text-xs hover:bg-navy-deep transition-all shadow-md"
-            >
-              Launch POS
-              <ArrowUpRight className="size-4 text-brass transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </Link>
+            {(company?.enable_retail_mode || company?.enable_wholesale_mode) && (
+              <Link
+                to="/pos"
+                className="group flex items-center gap-2 px-6 py-2.5 rounded bg-navy text-brass-light font-bold uppercase tracking-widest text-xs hover:bg-navy-deep transition-all shadow-md"
+              >
+                Launch POS
+                <ArrowUpRight className="size-4 text-brass transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </Link>
+            )}
           </div>
         </div>
 
@@ -568,13 +570,13 @@ function OverviewPage() {
           <h3 className="font-serif text-lg text-foreground mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
-              { icon: ShoppingCart, label: "New Sale", to: "/pos" },
-              { icon: Plus, label: "Purchase Order", to: "/purchases/stock-in" },
-              { icon: Boxes, label: "Stock Count", to: "/inventory/adjustments" },
-              { icon: UserPlus, label: "New Customer", to: "/customers" },
-              { icon: FileText, label: "Run Report", to: "/reports" },
-              { icon: Clock, label: "Staff Clock-In", to: "/hr/shifts" },
-            ].map((action, i) => (
+              { icon: ShoppingCart, label: "New Sale", to: "/pos", show: company?.enable_retail_mode || company?.enable_wholesale_mode },
+              { icon: Plus, label: "Purchase Order", to: "/purchases/stock-in", show: true },
+              { icon: Boxes, label: "Stock Count", to: "/inventory/adjustments", show: true },
+              { icon: UserPlus, label: "New Customer", to: "/customers", show: true },
+              { icon: FileText, label: "Run Report", to: "/reports", show: true },
+              { icon: Clock, label: "Staff Clock-In", to: "/hr/shifts", show: company?.enable_hr_module },
+            ].filter(action => action.show !== false).map((action, i) => (
               <Link 
                 key={i} 
                 to={action.to}

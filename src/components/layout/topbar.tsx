@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Bell, Search, PanelLeft, Sun, Moon, LayoutPanelLeft, Zap, ShieldAlert, AlertTriangle, TrendingDown, MapPin, Clock } from "lucide-react";
 import { useThemeStore, type ThemeMode } from "@/store/theme";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useBatchAnalytics, useBranches, useCompany } from "@/lib/api-hooks";
+import { cn, playAlertSound } from "@/lib/utils";
+import { useBatchAnalytics, useBranches, useCompany, useUserProfile, useInventorySettings } from "@/lib/api-hooks";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -34,7 +34,13 @@ export function Topbar() {
   const [hasPlayedSound, setHasPlayedSound] = useState(false);
   const { data: branchesData } = useBranches();
   const { data: company } = useCompany();
+  const { data: profile } = useUserProfile();
+  const { data: settings } = useInventorySettings();
   const branches = branchesData?.results || (Array.isArray(branchesData) ? branchesData : []);
+
+  const userRole = (profile as any)?.role || (profile as any)?.groups?.[0]?.name || "Administrator";
+  const firstName = (profile as any)?.first_name || (profile as any)?.username || "User";
+  const initials = firstName ? firstName.substring(0, 2).toUpperCase() : "U";
   const [selectedBranch, setSelectedBranch] = useState("all");
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -53,7 +59,8 @@ export function Topbar() {
     if (analytics?.summary?.total_alerts > 0) {
       // Play sound on first detection
       if (!hasPlayedSound) {
-        audioRef.current?.play().catch(e => console.log("Audio play failed:", e));
+        const soundType = settings?.alert_sound || 'chime';
+        playAlertSound(soundType);
         setHasPlayedSound(true);
       }
 
@@ -103,7 +110,7 @@ export function Topbar() {
       {/* Clock */}
       <div className="hidden lg:flex items-center gap-2 px-3 h-10 rounded-md border border-border bg-muted/40 text-muted-foreground font-mono text-sm">
         <Clock className="size-4" />
-        {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+        {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </div>
 
       {/* Branch Selector */}
@@ -202,13 +209,13 @@ export function Topbar() {
 
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center gap-2 pl-3 border-l border-border outline-none group cursor-pointer">
-          <div className="size-9 rounded-full bg-gradient-to-br from-navy to-navy-deep grid place-items-center text-brass-light font-display text-sm ring-1 ring-brass/40 group-hover:ring-brass transition-all">
-            JM
+          <div className="size-9 rounded-full bg-gradient-to-br from-navy to-navy-deep grid place-items-center text-brass-light font-display text-sm ring-1 ring-brass/40 group-hover:ring-brass transition-all uppercase">
+            {initials}
           </div>
           <div className="hidden md:block min-w-0 text-left">
-            <div className="text-sm font-medium leading-tight text-foreground truncate group-hover:text-brass transition-colors">james</div>
-            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              Administrator
+            <div className="text-sm font-medium leading-tight text-foreground truncate group-hover:text-brass transition-colors uppercase">{firstName}</div>
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground truncate max-w-[150px]">
+              {userRole}
             </div>
           </div>
         </DropdownMenuTrigger>
