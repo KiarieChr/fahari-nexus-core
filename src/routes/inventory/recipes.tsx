@@ -20,6 +20,7 @@ import {
   useUpdateRecipe,
   useAddRecipeIngredient,
   useRemoveRecipeIngredient,
+  useUnitsOfMeasure,
   Product,
 } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
@@ -187,7 +188,10 @@ function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionP
   const [selectedIngredientId, setSelectedIngredientId] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("0.1");
   const [wastage, setWastage] = useState<string>("0");
-  const [uom, setUom] = useState<string>("kg");
+  const [uomId, setUomId] = useState<string>("");
+
+  const { data: uomData } = useUnitsOfMeasure();
+  const units = uomData || [];
 
   useEffect(() => {
     if (recipe) {
@@ -243,21 +247,24 @@ function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionP
 
   const handleAddIngredient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recipe || !selectedIngredientId) return;
+    if (!recipe || !selectedIngredientId || !uomId) return;
     try {
       await addIngredient.mutateAsync({
         recipe: recipe.id,
         ingredient: Number(selectedIngredientId),
         quantity: Number(quantity),
-        unit_of_measure: uom,
+        unit: Number(uomId),
         wastage_allowance_pct: Number(wastage),
       });
       setSelectedIngredientId("");
       setQuantity("0.1");
       setWastage("0");
+      setUomId("");
       toast.success("Ingredient added to recipe!");
-    } catch (err) {
-      toast.error("Failed to add ingredient.");
+    } catch (err: any) {
+      const detail = err?.response?.data;
+      const msg = typeof detail === "string" ? detail : JSON.stringify(detail);
+      toast.error(`Failed to add ingredient: ${msg || err.message}`);
     }
   };
 
@@ -347,10 +354,10 @@ function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionP
                             <span className="text-[9px] font-mono text-muted-foreground uppercase">{ing.ingredient_sku}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right py-4 text-sm text-foreground font-mono">{ing.quantity} {ing.unit_of_measure}</TableCell>
+                        <TableCell className="text-right py-4 text-sm text-foreground font-mono">{ing.quantity} {ing.unit_name}</TableCell>
                         <TableCell className="text-right py-4 text-sm text-muted-foreground font-mono">{ing.wastage_allowance_pct}%</TableCell>
                         <TableCell className="text-right py-4 text-sm text-brass font-mono font-bold">
-                          {new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 0 }).format((ing.ingredient_cost || 0) * ing.quantity * (1 + ing.wastage_allowance_pct / 100))}
+                          {new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", minimumFractionDigits: 0 }).format((ing.cost_price || 0) * ing.quantity * (1 + ing.wastage_allowance_pct / 100))}
                         </TableCell>
                         <TableCell className="py-4 text-center">
                           <button onClick={() => handleRemoveIngredient(ing.id)} className="size-8 inline-flex items-center justify-center rounded-lg hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-colors">
@@ -433,12 +440,18 @@ function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionP
                       </div>
                       <div className="space-y-2">
                         <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Unit</Label>
-                        <select value={uom} onChange={(e: any) => setUom(e.target.value)} className="w-full bg-background border border-border rounded-xl h-11 px-3 text-sm text-foreground outline-none focus:border-brass">
-                          <option value="kg">Kg</option>
-                          <option value="l">L</option>
-                          <option value="g">g</option>
-                          <option value="ml">ml</option>
-                          <option value="pcs">pcs</option>
+                        <select
+                          value={uomId}
+                          onChange={(e: any) => setUomId(e.target.value)}
+                          required
+                          className="w-full bg-background border border-border rounded-xl h-11 px-3 text-sm text-foreground outline-none focus:border-brass"
+                        >
+                          <option value="">-- Select Unit --</option>
+                          {units.map((u) => (
+                            <option key={u.id} value={u.id.toString()}>
+                              {u.name} ({u.abbreviation})
+                            </option>
+                          ))}
                         </select>
                       </div>
                   </div>
@@ -448,8 +461,8 @@ function RecipeManagerSection({ productId, sellingPrice }: RecipeManagerSectionP
                     <p className="text-[10px] text-muted-foreground">Expected trim/loss during prep</p>
                   </div>
                 </div>
-                <Button type="submit" disabled={!selectedIngredientId} className="w-full bg-brass text-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brass-light h-12 rounded-xl mt-4">
-                  Add Ingredient
+                <Button type="submit" disabled={!selectedIngredientId || !uomId || addIngredient.isPending} className="w-full bg-brass text-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brass-light h-12 rounded-xl mt-4">
+                  {addIngredient.isPending ? "Adding..." : "Add Ingredient"}
                 </Button>
               </form>
           </div>

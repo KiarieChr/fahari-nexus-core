@@ -31,8 +31,9 @@ import {
   useMpesaStkPush,
   useMpesaTransactions,
   useUserProfile,
+  useBranches,
 } from "@/lib/api-hooks";
-import { Phone, Smartphone } from "lucide-react";
+import { Phone, Smartphone, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePrint } from "@/hooks/usePrint";
 import { KOTTemplate } from "@/components/pos/KOTTemplate";
@@ -137,7 +138,22 @@ function PosPage() {
     amountPaid: number;
     changeGiven: number;
     customerName?: string;
+    mpesaCode?: string;
   } | null>(null);
+
+  // Auto-print receipt toggle (persisted)
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("fahari-auto-print");
+      return stored === null ? true : stored === "true";
+    }
+    return true;
+  });
+
+  const toggleAutoPrint = (val: boolean) => {
+    setAutoPrintReceipt(val);
+    localStorage.setItem("fahari-auto-print", String(val));
+  };
 
   const { data, isLoading } = useProducts({ is_pos: true });
   const { data: catData } = useCategories();
@@ -165,6 +181,18 @@ function PosPage() {
   const { data: invSettings } = useInventorySettings();
   const { data: etimsData } = useEtimsConfig();
   const activeEtims = etimsData?.find(e => e.is_active);
+  const { data: branchData } = useBranches();
+  const branches = useMemo(() => {
+    if (!branchData) return [];
+    if (Array.isArray(branchData)) return branchData;
+    return (branchData as any).results || [];
+  }, [branchData]);
+
+  const activeBranchCode = useMemo(() => {
+    if ((activeEtims as any)?.branch_code) return (activeEtims as any).branch_code;
+    const main = branches.find((b: any) => b.is_main_branch);
+    return main?.branch_code || branches[0]?.branch_code || "05";
+  }, [branches, activeEtims]);
 
   const selectedCustomer = useMemo(() => {
     const customer = customers.find(c => c.id === selectedCustomerId);
@@ -293,7 +321,17 @@ function PosPage() {
   }, [total, paymentMethod]);
 
   const stkPush = useMpesaStkPush();
-  const { data: mpesaTxData, refetch: refetchMpesaTxs, isFetching: isFetchingMpesaTxs } = useMpesaTransactions(checkoutRequestId || undefined);
+  const mpesaParams = useMemo(() => {
+    if (checkoutRequestId) {
+      return { checkout_request_id: checkoutRequestId };
+    }
+    if (mpesaActiveTab === "verify") {
+      return { amount: total, recent: true };
+    }
+    return undefined;
+  }, [checkoutRequestId, mpesaActiveTab, total]);
+
+  const { data: mpesaTxData, refetch: refetchMpesaTxs, isFetching: isFetchingMpesaTxs } = useMpesaTransactions(mpesaParams);
 
   // Auto-complete sale when M-Pesa succeeds
   useEffect(() => {
@@ -323,6 +361,8 @@ function PosPage() {
     setLoyaltyPointsToRedeem(0);
     setAmountPaid("");
     setMpesaPhone("");
+    setTableNumber("");
+    setPaymentMethod("cash");
     setShowClearCartPinPad(false);
   };
 
@@ -355,22 +395,29 @@ function PosPage() {
       const finalCust = matchedCustomer || selectedCustomer;
       const finalCustId = finalCust?.id || null;
       const finalAmountPaid = Number(tx.amount) || total;
+      const mpesaCode = tx.mpesa_receipt_number || tx.mpesa_code || "";
       
       const response = await finalizeSale(finalCustId, finalAmountPaid);
       
-      setLastCheckoutResult({
+      const result = {
         amountPaid: finalAmountPaid,
         changeGiven: Math.max(0, finalAmountPaid - total),
         customerName: finalCust?.name,
-      });
+        mpesaCode,
+      };
+      setLastCheckoutResult(result);
 
-      if (billRef.current) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await printElement(billRef.current);
+      if (autoPrintReceipt) {
+        // Auto-print: print, clear cart, close modal
+        if (billRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          await printElement(billRef.current);
+        }
+        setCart([]);
+        setShowMpesaCheckoutModal(false);
+        setLastCheckoutResult(null);
       }
-
-      setCart([]);
-      setShowMpesaCheckoutModal(false);
+      // If auto-print off — leave modal open showing success state with Print/New Sale buttons
     } catch (err: any) {
       setIsError(err.response?.data?.error || err.message || "Checkout failed");
       setTimeout(() => setIsError(null), 5000);
@@ -385,19 +432,24 @@ function PosPage() {
       
       const response = await finalizeSale(finalCustId, finalAmountPaid);
       
-      setLastCheckoutResult({
+      const result = {
         amountPaid: finalAmountPaid,
         changeGiven: Math.max(0, finalAmountPaid - total),
         customerName: finalCust?.name,
-      });
+      };
+      setLastCheckoutResult(result);
 
-      // Print thermal receipt automatically
-      if (billRef.current) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await printElement(billRef.current);
+      if (autoPrintReceipt) {
+        // Auto-print: print receipt, clear cart, close modal
+        if (billRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          await printElement(billRef.current);
+        }
+        setCart([]);
+        setShowCashCheckoutModal(false);
+        setLastCheckoutResult(null);
       }
-
-      setCart([]); // Clear basket
+      // If auto-print off — leave modal open showing success state with Print/New Sale buttons
     } catch (err: any) {
       setIsError(err.response?.data?.error || err.message || "Checkout failed");
       setTimeout(() => setIsError(null), 5000);
@@ -422,17 +474,20 @@ function PosPage() {
       order_type: orderType,
     };
     const response = await createSale.mutateAsync(saleData);
-    
-    setIsSuccess(true);
-    setTableNumber("");
-    setSelectedCustomerId(null);
-    setLoyaltyPointsToRedeem(0);
-    setPaymentMethod("cash");
-    setMpesaPhone("");
-    
-    if (!showCashCheckoutModal) {
+
+    // Only reset the POS UI immediately when no modal is managing its own
+    // post-sale success state (cash modal and M-Pesa modal each handle their
+    // own success screens and trigger cart/state resets via their own buttons).
+    if (!showCashCheckoutModal && !showMpesaCheckoutModal) {
+      setIsSuccess(true);
+      setTableNumber("");
+      setSelectedCustomerId(null);
+      setLoyaltyPointsToRedeem(0);
+      setPaymentMethod("cash");
+      setMpesaPhone("");
       setTimeout(() => setIsSuccess(false), 3000);
     }
+
     return response;
   };
 
@@ -992,6 +1047,33 @@ function PosPage() {
               {total.toLocaleString()}
             </div>
           </div>
+
+          {/* Auto-Print Receipt Toggle */}
+          <div className="flex items-center justify-between px-1 py-2 rounded-xl border border-border bg-muted/10 mt-1">
+            <div className="flex items-center gap-2">
+              <Printer className="size-3.5 text-muted-foreground" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Auto-Print Receipt
+              </span>
+            </div>
+            <button
+              id="auto-print-toggle"
+              onClick={() => toggleAutoPrint(!autoPrintReceipt)}
+              className={cn(
+                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                autoPrintReceipt ? "bg-emerald-500" : "bg-muted"
+              )}
+              role="switch"
+              aria-checked={autoPrintReceipt}
+            >
+              <span
+                className={cn(
+                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                  autoPrintReceipt ? "translate-x-4" : "translate-x-0"
+                )}
+              />
+            </button>
+          </div>
           <button
             onClick={() => {
               if (paymentMethod === "cash" && activeSection !== "restaurant") {
@@ -1073,7 +1155,8 @@ function PosPage() {
           paymentMethod={paymentMethod}
           amountPaid={lastCheckoutResult ? lastCheckoutResult.amountPaid : (amountPaid ? Number(amountPaid) : total)}
           changeAmount={lastCheckoutResult ? lastCheckoutResult.changeGiven : (amountPaid ? Math.max(0, Number(amountPaid) - total) : 0)}
-          branchCode={(company as any)?.branch_code || (activeEtims as any)?.branch_code || "05"}
+          mpesaCode={lastCheckoutResult?.mpesaCode || ""}
+          branchCode={activeBranchCode}
           qrUrl={(lastCheckoutResult as any)?.qrUrl || (activeEtims as any)?.qr_code_url || (activeEtims as any)?.qr_url}
         />
       </div>
@@ -1320,7 +1403,40 @@ function PosPage() {
                 <h4 className="text-xl font-bold uppercase tracking-tight text-foreground mb-4">
                   Payment Successful!
                 </h4>
+
+                <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto mb-4">
+                  <div className="p-3 bg-muted/30 border border-border rounded-xl">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Amount Paid</div>
+                    <div className="text-lg font-extrabold text-foreground tabular-nums">
+                      KES {lastCheckoutResult.amountPaid.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                    <div className="text-[10px] uppercase font-bold text-emerald-500">M-Pesa Code</div>
+                    <div className="text-base font-extrabold text-emerald-500 font-mono tracking-wider">
+                      {lastCheckoutResult.mpesaCode || "—"}
+                    </div>
+                  </div>
+                </div>
+
+                {lastCheckoutResult.customerName && (
+                  <div className="text-xs text-muted-foreground font-semibold mb-4">
+                    Customer: <span className="text-emerald-500 uppercase font-black">{lastCheckoutResult.customerName}</span>
+                  </div>
+                )}
+
                 <div className="flex gap-3 max-w-sm mx-auto pt-4 border-t">
+                  <button
+                    onClick={async () => {
+                      if (billRef.current) {
+                        await printElement(billRef.current);
+                      }
+                    }}
+                    className="flex-1 h-12 bg-muted hover:bg-muted/80 text-foreground font-bold uppercase rounded-xl text-xs transition-all border border-border flex items-center justify-center gap-2"
+                  >
+                    <Printer className="size-4" />
+                    Print Receipt
+                  </button>
                   <button
                     onClick={() => {
                       setShowMpesaCheckoutModal(false);

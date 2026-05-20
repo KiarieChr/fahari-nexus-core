@@ -1301,17 +1301,28 @@ export const useMpesaStkPush = () => {
   });
 };
 
-export const useMpesaTransactions = (checkoutRequestId?: string) => {
+export const useMpesaTransactions = (params?: {
+  checkout_request_id?: string;
+  amount?: number;
+  recent?: boolean;
+}) => {
   return useQuery<{ results: any[] }>({
-    queryKey: ["mpesa-transactions", checkoutRequestId],
+    queryKey: ["mpesa-transactions", params],
     queryFn: async () => {
-      const params = checkoutRequestId ? { checkout_request_id: checkoutRequestId } : {};
       const { data } = await api.get("/api/v2/integrations/mpesa-transactions/", { params });
+      // Normalize response (backend returns plain array)
+      if (Array.isArray(data)) return { results: data };
       return data;
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
     refetchInterval: (query) => {
       const results = query.state.data?.results || [];
+      if (params?.checkout_request_id) {
+        const hasFinished = results.some(
+          (t: any) => t.status === "SUCCESS" || t.status === "FAILED" || t.status === "CANCELLED"
+        );
+        return hasFinished ? false : 2000; // Poll every 2s until finalized
+      }
       const isPending = results.some((t: any) => t.status === "PENDING");
       return isPending ? 3000 : false;
     },
@@ -1329,6 +1340,17 @@ export const useEtimsConfig = () => {
   });
 };
 
+export const useSystemVersion = () => {
+  return useQuery<{ version: string; environment: string; system: string }>({
+    queryKey: ["system-version"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v1/version/");
+      return data;
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+  });
+};
+
 // Recipe & BOM management interfaces
 export interface Recipe {
   id: number;
@@ -1340,15 +1362,23 @@ export interface Recipe {
   food_cost_percentage?: number;
 }
 
+export interface UnitOfMeasure {
+  id: number;
+  name: string;
+  abbreviation: string;
+  description?: string;
+}
+
 export interface RecipeIngredientDetail {
   id: number;
   recipe: number;
   ingredient: number;
   ingredient_name: string;
   ingredient_sku: string;
-  ingredient_cost: number;
+  cost_price: number;
   quantity: number;
-  unit_of_measure: string;
+  unit: number;
+  unit_name: string;
   wastage_allowance_pct: number;
 }
 
@@ -1418,6 +1448,18 @@ export const useRemoveRecipeIngredient = () => {
       queryClient.invalidateQueries({ queryKey: ["recipe"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
+  });
+};
+
+export const useUnitsOfMeasure = () => {
+  return useQuery<UnitOfMeasure[]>({
+    queryKey: ["uom"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v1/uom/");
+      return Array.isArray(data) ? data : data.results || [];
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("fahari-token"),
+    staleTime: 5 * 60 * 1000, // UoM list rarely changes — cache 5 mins
   });
 };
 

@@ -3,7 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { navSections, type NavSection } from "./nav-config";
 import { useThemeStore } from "@/store/theme";
-import { useCompany, useInventorySettings } from "@/lib/api-hooks";
+import { useCompany, useInventorySettings, useSystemVersion } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -25,6 +25,10 @@ export function AppSidebar() {
   const collapsed = useThemeStore((s) => s.sidebarCollapsed);
   const { data: company } = useCompany();
   const { data: settings } = useInventorySettings();
+  const { data: verData } = useSystemVersion();
+  const backendVersion = verData?.version;
+  const frontendVersion = "1.5.3";
+  const isSynced = backendVersion === frontendVersion;
 
   // Filter navigation based on enabled company modules
   const filteredNav = useMemo(
@@ -245,6 +249,23 @@ export function AppSidebar() {
             </div>
           )}
         </div>
+        {!collapsed && (
+          <div className="mt-3 pt-3 border-t border-sidebar-border/30 flex items-center justify-between text-[10px] font-mono text-sidebar-foreground/40">
+            <span className="uppercase tracking-wider">System Version</span>
+            <Link
+              to="/changelog"
+              className={cn(
+                "flex items-center gap-1.5 bg-sidebar-accent/50 px-2 py-0.5 rounded-full border border-sidebar-border/30 hover:border-brass/40 hover:text-brass/60 transition-colors"
+              )}
+            >
+              <span className={cn(
+                "size-1.5 rounded-full animate-pulse",
+                isSynced ? "bg-emerald-500" : "bg-amber-500"
+              )} />
+              <span className="text-sidebar-foreground/60">v{frontendVersion}</span>
+            </Link>
+          </div>
+        )}
       </div>
     </aside>
   );

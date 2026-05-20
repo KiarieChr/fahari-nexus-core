@@ -16,7 +16,7 @@ import {
   Clock,
   ExternalLink,
 } from "lucide-react";
-import { useSales, useIncrementSalePrintCount } from "@/lib/api-hooks";
+import { useSales, useIncrementSalePrintCount, useCompany } from "@/lib/api-hooks";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -86,6 +86,7 @@ function SalesPage() {
 
   const incrementPrintCount = useIncrementSalePrintCount();
   const { printElement } = usePrint();
+  const { data: company } = useCompany();
 
   const { data, isLoading } = useSales({
     search: search || undefined,
@@ -538,9 +539,10 @@ function SalesPage() {
         <div className="hidden">
           <BillTemplate
             ref={printReceiptRef}
-            businessName="FAHARI NEXUS"
-            address="Easy Biz Business Center, Nairobi"
-            phone="+254 700 000 000"
+            businessName={company?.name || selectedSale.company_name || ""}
+            address={company?.primary_address || selectedSale.company_address || ""}
+            phone={company?.phone_number || selectedSale.company_phone || ""}
+            logoUrl={company?.logo}
             tableNumber={selectedSale.table_number || "COUNTER"}
             waiterName="Cashier"
             staffName={selectedSale.cashier_name || "Staff"}
@@ -553,12 +555,13 @@ function SalesPage() {
             subtotal={Number(selectedSale.subtotal)}
             tax={Number(selectedSale.tax_amount)}
             total={Number(selectedSale.total)}
-            kraPin={selectedSale.kra_pin || "P051234567A"}
-            isEtimsEnabled={true}
-            serialNumber={selectedSale.serial_number || "ETMS-1234567"}
+            kraPin={selectedSale.kra_pin || company?.tax_id || ""}
+            isEtimsEnabled={!!selectedSale.serial_number}
+            serialNumber={selectedSale.serial_number || ""}
             paymentMethod={selectedSale.payment_method}
             amountPaid={Number(selectedSale.amount_paid || selectedSale.total)}
             changeAmount={Number(selectedSale.change_amount || 0)}
+            mpesaCode={selectedSale.mpesa_receipt_number || selectedSale.mpesa_code || ""}
             branchCode={selectedSale.branch_code || "05"}
             qrUrl={selectedSale.qr_code_url || selectedSale.qr_url}
             terminalId={selectedSale.terminal_id || selectedSale.terminal || "TMN-DEFAULT"}

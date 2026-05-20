@@ -38,13 +38,70 @@ interface BillTemplateProps {
   paymentMethod?: string;
   amountPaid?: number;
   changeAmount?: number;
+  mpesaCode?: string;
 }
+
+const CODE39_MAP: Record<string, string> = {
+  '0': '101001101101', '1': '110100101011', '2': '101100101011', '3': '110110010101',
+  '4': '101001101011', '5': '110100110101', '6': '101100110101', '7': '101001011011',
+  '8': '110100101101', '9': '101100101101', 'A': '110101001011', 'B': '101101001011',
+  'C': '110110100101', 'D': '101011001011', 'E': '110101100101', 'F': '101101100101',
+  'G': '101010011011', 'H': '110101001101', 'I': '101101001101', 'J': '101011001101',
+  'K': '110101010011', 'L': '101101010011', 'M': '110110101001', 'N': '101011010011',
+  'O': '110101101001', 'P': '101101101001', 'Q': '101010110011', 'R': '110101011001',
+  'S': '101101011001', 'T': '101011011001', 'U': '110010101011', 'V': '100110101011',
+  'W': '110011010101', 'X': '100101101011', 'Y': '110010110101', 'Z': '100110110101',
+  '-': '100101011011', '.': '110010101101', ' ': '100110101101', '*': '100101101101',
+  '$': '100100100101', '/': '100100101001', '+': '100101001001', '%': '101001001001'
+};
+
+function generateCode39Pattern(text: string): string {
+  const sanitized = text.toUpperCase().replace(/[^0-9A-Z\-.\s$/+*%]/g, "");
+  const fullText = `*${sanitized}*`;
+  let pattern = "";
+  for (let i = 0; i < fullText.length; i++) {
+    const char = fullText[i];
+    const charPattern = CODE39_MAP[char] || CODE39_MAP[' '];
+    pattern += charPattern + "0";
+  }
+  return pattern;
+}
+
+const Barcode: React.FC<{ value: string }> = ({ value }) => {
+  const sanitizedValue = value.replace(/_/g, "-");
+  const pattern = generateCode39Pattern(sanitizedValue);
+  const barWidth = 1.0;
+  const height = 24;
+  const width = pattern.length * barWidth;
+
+  return (
+    <div className="flex flex-col items-center my-1.5">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} shapeRendering="crispEdges">
+        {pattern.split("").map((bit, idx) => {
+          if (bit === "1") {
+            return (
+              <rect
+                key={idx}
+                x={idx * barWidth}
+                y={0}
+                width={barWidth}
+                height={height}
+                fill="black"
+              />
+            );
+          }
+          return null;
+        })}
+      </svg>
+    </div>
+  );
+};
 
 export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>((props, ref) => {
   const {
-    businessName = "FAHARI NEXUS",
-    address = "Easy Biz Business Center, Nairobi",
-    phone = "+254 700 000 000",
+    businessName = "",
+    address = "",
+    phone = "",
     items = [],
     tax = 0,
     total = 0,
@@ -65,6 +122,7 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
     paymentMethod = "cash",
     amountPaid,
     changeAmount,
+    mpesaCode = "",
   } = props;
 
   const now = new Date();
@@ -90,19 +148,15 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
   const formattedDate = formatReceiptDate(now);
   const formattedTime = formatReceiptTime(now);
 
-  // Compute total quantity
   const totalItemsCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
-  // eTIMS computations
-  // A = 16% Tax. Since prices are VAT inclusive:
-  // Vatable Amt is the gross amount (e.g. 720.00), VAT Amt is gross * (16 / 116)
   const computedVatAmt = tax > 0 ? tax : total * (16 / 116);
   const computedVatableAmt = total;
 
   return (
     <div
       ref={ref}
-      className="w-[80mm] px-1 py-2 bg-white text-black font-mono text-[9px] leading-tight print:p-0 select-none"
+      className="w-[80mm] pl-[6mm] pr-[2mm] py-2 bg-white text-black font-mono text-[9px] leading-tight select-none"
       style={{ margin: "0 auto", maxWidth: "80mm" }}
     >
       <style dangerouslySetInnerHTML={{ __html: `
@@ -114,6 +168,8 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
           body {
             background: white;
             color: black;
+            padding-left: 6mm !important;
+            padding-right: 2mm !important;
           }
           .no-print {
             display: none !important;
@@ -126,13 +182,18 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
         {logoUrl && (
           <img src={logoUrl} alt="logo" className="w-12 h-12 object-contain mb-1" />
         )}
-        <h1 className="font-extrabold text-[12px] uppercase leading-none">{businessName}</h1>
-        <p className="text-[9px] uppercase font-bold">{address}</p>
+        {businessName && (
+          <h1 className="font-extrabold text-[12px] uppercase leading-none">{businessName}</h1>
+        )}
+        {address && (
+          <p className="text-[9px] uppercase font-bold">{address}</p>
+        )}
       </div>
 
       {/* 2. Bill Number */}
-      <div className="flex flex-col items-center my-1.5">
+      <div className="flex flex-col items-center my-1.5 space-y-1">
         <span className="text-[10px] tracking-widest font-bold mt-0.5 uppercase">{billNumber}</span>
+        <Barcode value={billNumber} />
       </div>
 
       {/* 3. PIN, VAT, Till, Date & Branch Grid */}
@@ -143,10 +204,12 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
             {vatReg && <span>VAT Reg: {vatReg}</span>}
           </div>
         )}
-        <div className="flex justify-between">
-          <span>Tel No. : {phone}</span>
-          <span>Fax:</span>
-        </div>
+        {phone && (
+          <div className="flex justify-between">
+            <span>Tel No. : {phone}</span>
+            <span>Fax:</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>Till No. : {terminalId}</span>
           <span>Cash Sale # : {billNumber}</span>
@@ -243,8 +306,9 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
         )}
 
         {paymentMethod === "mpesa" && (
-          <div className="text-[8px] border-t border-dotted border-black/30 pt-1 mt-1 text-center font-bold">
-            *** MPESA TRANSACTION VERIFIED ***
+          <div className="text-[8px] border-t border-dotted border-black/30 pt-1 mt-1 text-center font-bold space-y-0.5">
+            <div>*** MPESA TRANSACTION VERIFIED ***</div>
+            {mpesaCode && <div className="text-[9px] uppercase tracking-wider font-extrabold">REF: {mpesaCode}</div>}
           </div>
         )}
       </div>
@@ -297,7 +361,6 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
             <span className="font-bold">{formattedDate} {formattedTime.slice(0, 5)}</span>
           </div>
           
-          {/* Centered Dynamic KRA eTIMS or Fallback Vector QR Code */}
           <div className="py-1 flex justify-center">
             {qrUrl ? (
               <div className="bg-white p-1 select-all">
@@ -305,11 +368,9 @@ export const BillTemplate = React.forwardRef<HTMLDivElement, BillTemplateProps>(
               </div>
             ) : (
               <svg className="w-20 h-20 mx-auto" viewBox="0 0 21 21" shapeRendering="crispEdges">
-                {/* Position locator squares */}
                 <path d="M0 0h7v7H0zm14 0h7v7h-7zM0 14h7v7H0z" fill="black" />
                 <path d="M1 1h5v5H1zm14 0h5v5H15zM1 15h5v5H1z" fill="white" />
                 <path d="M2 2h3v3H2zm14 0h3v3H16zM2 16h3v3H2z" fill="black" />
-                {/* Realistic QR matrix noise */}
                 <path d="M9 0h2v1H9zm1 2h1v1h-1zm-1 2h2v1H9zm1 2h1v1h-1zM8 8h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm-4 1h1v1H8zm3 0h1v1h-1zm1 1h1v1h-1zm-3 2h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm-4 3h1v1H8zm3 0h1v1h-1zm1 1h1v1h-1zm-3 2h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1z" fill="black" />
                 <path d="M11 9h1v1h-1zm2 2h1v1h-1zm-2 2h1v1h-1zm2 2h1v1h-1zm2 2h1v1H15z" fill="black" />
                 <path d="M0 9h1v1H0zm2 0h1v1H2zm4 0h1v1H6zm0 2h1v1H6zm0 2h1v1H6zm0 2h1v1H6z" fill="black" />
