@@ -293,7 +293,7 @@ export const useMovementAnalytics = () => {
   });
 };
 
-export const useReports = (params: string | { type: string }) => {
+export const useReports = (params: string | { type: string; branch_id?: string; costing_method?: string; days?: string }) => {
   const queryParams = typeof params === "string" ? { type: params } : params;
   return useQuery({
     queryKey: ["reports", queryParams],

@@ -194,6 +194,120 @@ function ReportsPage() {
     });
   };
 
+  /**
+   * html2canvas does not understand modern CSS color functions like oklch().
+   * This function injects a <style> tag into the target element that overrides
+   * every CSS custom property (--color-*, --background, etc.) with a safe
+   * pre-computed rgb/hex value so html2canvas can render correctly.
+   * Returns a cleanup function to remove the injected style.
+   */
+  const injectHtml2CanvasColorFallbacks = (element: HTMLElement): () => void => {
+    const isDark = document.documentElement.classList.contains("dark");
+    
+    // Pre-computed rgb equivalents for all oklch values in styles.css
+    const lightVars: Record<string, string> = {
+      "--brass-light":                   "rgb(212,185,143)",
+      "--brass":                          "rgb(179,143,87)",
+      "--brass-dark":                     "rgb(126,103,62)",
+      "--navy-deep":                      "rgb(22,25,52)",
+      "--navy":                           "rgb(32,36,74)",
+      "--background":                     "rgb(249,247,242)",
+      "--foreground":                     "rgb(30,33,68)",
+      "--card":                           "rgb(255,255,255)",
+      "--card-foreground":                "rgb(30,33,68)",
+      "--popover":                        "rgb(255,255,255)",
+      "--popover-foreground":             "rgb(30,33,68)",
+      "--primary":                        "rgb(22,25,52)",
+      "--primary-foreground":             "rgb(245,242,235)",
+      "--secondary":                      "rgb(242,239,232)",
+      "--secondary-foreground":           "rgb(22,25,52)",
+      "--muted":                          "rgb(242,240,234)",
+      "--muted-foreground":               "rgb(118,122,162)",
+      "--accent":                         "rgb(179,143,87)",
+      "--accent-foreground":              "rgb(22,27,54)",
+      "--destructive":                    "rgb(183,51,30)",
+      "--destructive-foreground":         "rgb(250,248,244)",
+      "--border":                         "rgb(228,222,208)",
+      "--input":                          "rgb(234,229,216)",
+      "--ring":                           "rgb(179,143,87)",
+      "--chart-1":                        "rgb(179,143,87)",
+      "--chart-2":                        "rgb(72,130,196)",
+      "--chart-3":                        "rgb(55,163,118)",
+      "--chart-4":                        "rgb(196,148,47)",
+      "--chart-5":                        "rgb(130,47,196)",
+      "--sidebar":                        "rgb(22,25,52)",
+      "--sidebar-foreground":             "rgb(212,206,196)",
+      "--sidebar-primary":                "rgb(179,143,87)",
+      "--sidebar-primary-foreground":     "rgb(22,25,52)",
+      "--sidebar-accent":                 "rgb(40,44,82)",
+      "--sidebar-accent-foreground":      "rgb(212,185,143)",
+      "--sidebar-border":                 "rgba(68,76,122,0.5)",
+      "--sidebar-ring":                   "rgb(179,143,87)",
+      // Tailwind mapped versions
+      "--color-background":              "rgb(249,247,242)",
+      "--color-foreground":              "rgb(30,33,68)",
+      "--color-card":                    "rgb(255,255,255)",
+      "--color-card-foreground":         "rgb(30,33,68)",
+      "--color-popover":                 "rgb(255,255,255)",
+      "--color-popover-foreground":      "rgb(30,33,68)",
+      "--color-primary":                 "rgb(22,25,52)",
+      "--color-primary-foreground":      "rgb(245,242,235)",
+      "--color-secondary":               "rgb(242,239,232)",
+      "--color-secondary-foreground":    "rgb(22,25,52)",
+      "--color-muted":                   "rgb(242,240,234)",
+      "--color-muted-foreground":        "rgb(118,122,162)",
+      "--color-accent":                  "rgb(179,143,87)",
+      "--color-accent-foreground":       "rgb(22,27,54)",
+      "--color-destructive":             "rgb(183,51,30)",
+      "--color-destructive-foreground":  "rgb(250,248,244)",
+      "--color-border":                  "rgb(228,222,208)",
+      "--color-input":                   "rgb(234,229,216)",
+      "--color-ring":                    "rgb(179,143,87)",
+      "--color-brass":                   "rgb(179,143,87)",
+      "--color-brass-light":             "rgb(212,185,143)",
+      "--color-brass-dark":              "rgb(126,103,62)",
+      "--color-navy":                    "rgb(32,36,74)",
+      "--color-navy-deep":               "rgb(22,25,52)",
+    };
+
+    const darkVars: Record<string, string> = {
+      ...lightVars,
+      "--background":                    "rgb(20,22,48)",
+      "--foreground":                    "rgb(232,228,218)",
+      "--card":                          "rgb(28,32,62)",
+      "--card-foreground":               "rgb(232,228,218)",
+      "--popover":                       "rgb(28,32,62)",
+      "--popover-foreground":            "rgb(232,228,218)",
+      "--primary":                       "rgb(179,143,87)",
+      "--primary-foreground":            "rgb(22,25,52)",
+      "--secondary":                     "rgb(34,38,70)",
+      "--secondary-foreground":          "rgb(232,228,218)",
+      "--muted":                         "rgb(30,34,66)",
+      "--muted-foreground":              "rgb(158,152,138)",
+      "--destructive":                   "rgb(190,62,35)",
+      "--border":                        "rgba(68,76,122,0.6)",
+      "--input":                         "rgba(56,62,102,0.8)",
+      "--sidebar":                       "rgb(14,16,40)",
+      "--color-background":             "rgb(20,22,48)",
+      "--color-foreground":             "rgb(232,228,218)",
+      "--color-card":                   "rgb(28,32,62)",
+      "--color-card-foreground":        "rgb(232,228,218)",
+      "--color-muted":                  "rgb(30,34,66)",
+      "--color-muted-foreground":       "rgb(158,152,138)",
+      "--color-primary":                "rgb(179,143,87)",
+      "--color-border":                 "rgba(68,76,122,0.6)",
+    };
+
+    const vars = isDark ? darkVars : lightVars;
+    const cssText = `:root, * { ${Object.entries(vars).map(([k, v]) => `${k}: ${v} !important;`).join(" ")} }`;
+    const styleEl = document.createElement("style");
+    styleEl.id = "__html2canvas-oklch-fallback";
+    styleEl.textContent = cssText;
+    element.prepend(styleEl);
+    
+    return () => styleEl.remove();
+  };
+
   const handleExport = async (format: "excel" | "pdf" | "word") => {
     try {
       setExporting(format);
@@ -214,12 +328,14 @@ function ReportsPage() {
             responseType: "blob"
           });
           
-          const blob = new Blob([response.data], { type: response.headers["content-type"] });
+          const rawPdfContentType = response.headers["content-type"];
+          const blob = new Blob([response.data], { type: typeof rawPdfContentType === "string" ? rawPdfContentType : undefined });
           if (blob.size > 200) { // Check that we didn't get an empty or tiny error response
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            const disposition = response.headers["content-disposition"];
+            const rawPdfDisposition = response.headers["content-disposition"];
+            const disposition = typeof rawPdfDisposition === "string" ? rawPdfDisposition : undefined;
             let filename = `${activeTab}_report.pdf`;
             if (disposition && disposition.indexOf("attachment") !== -1) {
               const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
@@ -251,6 +367,7 @@ function ReportsPage() {
         // Ensure the browser has painted the expanded table
         await new Promise((resolve) => setTimeout(resolve, 800));
         
+        let cleanupColorFallback: (() => void) | null = null;
         try {
           const html2pdfLib = await loadHtml2Pdf();
           const element = document.getElementById("report-export-container");
@@ -258,16 +375,28 @@ function ReportsPage() {
             throw new Error("Report export container not found");
           }
           
+          // Inject safe rgb fallbacks so html2canvas doesn't choke on oklch()
+          cleanupColorFallback = injectHtml2CanvasColorFallbacks(element);
+          
           const opt = {
             margin:       0.3,
             filename:     `${activeTab}_report.pdf`,
             image:        { type: 'jpeg', quality: 0.95 },
-            html2canvas:  { scale: 1.5, useCORS: true, logging: false },
+            html2canvas:  { 
+              scale: 1.5, 
+              useCORS: true, 
+              logging: false,
+              // Ensure white background so transparent oklch backgrounds render cleanly
+              backgroundColor: '#ffffff',
+              // Allow cross-origin images
+              allowTaint: false,
+            },
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
           };
           
           await html2pdfLib().set(opt).from(element).save();
         } finally {
+          if (cleanupColorFallback) cleanupColorFallback();
           setIsGeneratingPDF(false);
         }
         return;
@@ -286,12 +415,14 @@ function ReportsPage() {
         responseType: "blob"
       });
       
-      const blob = new Blob([response.data], { type: response.headers["content-type"] });
+      const rawContentType = response.headers["content-type"];
+      const blob = new Blob([response.data], { type: typeof rawContentType === "string" ? rawContentType : undefined });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       
-      const disposition = response.headers["content-disposition"];
+      const rawDisposition = response.headers["content-disposition"];
+      const disposition = typeof rawDisposition === "string" ? rawDisposition : undefined;
       let filename = `${activeTab}_report.${format === "excel" ? "xlsx" : "doc"}`;
       if (disposition && disposition.indexOf("attachment") !== -1) {
         const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
@@ -520,7 +651,10 @@ function ReportsPage() {
             )}
           >
             {/* Dynamic Reusable Premium Corporate Print Header */}
-            <div className={cn("pb-6 mb-6 border-b-2 border-slate-800 text-slate-800 space-y-4", !isGeneratingPDF && "hidden")}>
+            <div
+              className="pb-6 mb-6 border-b-2 border-slate-800 text-slate-800 space-y-4"
+              style={{ display: isGeneratingPDF ? '' : 'none' }}
+            >
                 <div className="flex items-start justify-between">
                   <div className="text-left space-y-1">
                     <h1 className="text-3xl font-extrabold uppercase tracking-widest text-slate-900 font-sans">
@@ -678,7 +812,10 @@ function ReportsPage() {
               )}
             </CardContent>
             {/* Dynamic Reusable Premium Corporate Print Footer */}
-            <div className={cn("pt-4 mt-6 border-t border-slate-300 text-center text-[9px] uppercase tracking-widest text-slate-400 bg-slate-50 p-3 rounded-b", !isGeneratingPDF && "hidden")}>
+            <div
+              className="pt-4 mt-6 border-t border-slate-300 text-center text-[9px] uppercase tracking-widest text-slate-400 bg-slate-50 p-3 rounded-b"
+              style={{ display: isGeneratingPDF ? '' : 'none' }}
+            >
                 This document is a system-generated official audit compiled by {company?.name || "FAHARI NEXUS ERP"}. Confidential & Proprietary.
             </div>
           </Card>
